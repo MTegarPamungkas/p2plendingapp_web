@@ -100,19 +100,12 @@ export default function LenderMarketplaceDetailsPage({
 }: {
   params: { id: string };
 }) {
-  const [investmentAmount, setInvestmentAmount] = useState(5000);
+  const [investmentAmount, setInvestmentAmount] = useState(0);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [isInvesting, setIsInvesting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [loanId, setLoanId] = useState<string | null>(null);
   const router = useRouter();
-
-  // Mock wallet data (replace with actual wallet data from your API or context)
-  const wallet = {
-    walletId: "wallet123",
-    userId: "User123",
-    balance: 10000000, // Example balance in IDR
-  };
 
   useEffect(() => {
     async function getParams() {
@@ -195,19 +188,6 @@ export default function LenderMarketplaceDetailsPage({
     return companies[index] || "Business Enterprise";
   };
 
-  const generateLoanTitle = (purpose: string) => {
-    const titleMap: { [key: string]: string } = {
-      Expansion: "Business Expansion",
-      Equipment: "Equipment Financing",
-      Inventory: "Inventory Financing",
-      "Working Capital": "Working Capital Loan",
-      Technology: "Technology Upgrade",
-      Marketing: "Marketing Campaign",
-      default: "Business Loan",
-    };
-    return titleMap[purpose] || titleMap["default"];
-  };
-
   const { mutateAsync: investInLoanMutation, loading: investInLoanLoading } =
     useMutation();
 
@@ -215,13 +195,11 @@ export default function LenderMarketplaceDetailsPage({
     try {
       if (loanId) {
         await investInLoanMutation(() => loanAPI.investInLoan(loanId, amount));
+        setPaymentDialogOpen(false);
         refetchLoan();
         refetchLogsLoan();
         setIsInvesting(true);
-        setTimeout(() => {
-          setIsInvesting(false);
-          setShowSuccess(true);
-        }, 1500);
+        setShowSuccess(true);
       } else {
         throw new Error("Loan ID is missing");
       }
@@ -265,7 +243,7 @@ export default function LenderMarketplaceDetailsPage({
   const progress = Math.round((loan.currentFunding / loan.fundingTarget) * 100);
   const creditRating = getCreditRating(loan.creditScore);
   const companyName = generateCompanyName(loan.purpose);
-  const loanTitle = generateLoanTitle(loan.purpose);
+  const loanTitle = loan.purpose + " Loan";
 
   return (
     <LenderDashboardLayout>
@@ -367,7 +345,7 @@ export default function LenderMarketplaceDetailsPage({
                   </div>
                 </div>
 
-                <div className="rounded-md bg-muted/30 p-4 flex items-center justify-between">
+                {/* <div className="rounded-md bg-muted/30 p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Calendar className="h-5 w-5 text-primary" />
                     <div>
@@ -383,7 +361,7 @@ export default function LenderMarketplaceDetailsPage({
                       {(loan.creditScore / 170).toFixed(1)}/5 Rating
                     </p>
                   </div>
-                </div>
+                </div> */}
 
                 {loan.description && (
                   <div className="space-y-2">
@@ -407,10 +385,8 @@ export default function LenderMarketplaceDetailsPage({
             </Card>
 
             <Tabs defaultValue="business" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="business">Business Details</TabsTrigger>
-                <TabsTrigger value="financials">Financials</TabsTrigger>
-                <TabsTrigger value="investments">Investments</TabsTrigger>
                 <TabsTrigger value="credit">Credit Score</TabsTrigger>
                 <TabsTrigger value="logs">Logs</TabsTrigger>
               </TabsList>
@@ -482,134 +458,7 @@ export default function LenderMarketplaceDetailsPage({
                   </CardContent>
                 </Card>
               </TabsContent>
-              <TabsContent value="financials" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Kinerja Keuangan</CardTitle>
-                    <CardDescription>Data keuangan historis</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="h-[200px] w-full rounded-md bg-muted/30 flex items-center justify-center">
-                      <BarChart3 className="h-8 w-8 text-muted-foreground" />
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        Grafik Kinerja Keuangan
-                      </span>
-                    </div>
 
-                    {loan.financials && loan.financials.length > 0 ? (
-                      <div className="space-y-4">
-                        <p className="font-medium">Kinerja Tahunan</p>
-                        <div className="space-y-4">
-                          {loan.financials.map(
-                            (
-                              year: {
-                                year: string;
-                                revenue: number;
-                                profit: number;
-                              },
-                              index: Key | null | undefined
-                            ) => (
-                              <div
-                                key={index}
-                                className="flex items-center justify-between border-b border-border/50 pb-4 last:border-0 last:pb-0"
-                              >
-                                <div className="space-y-1">
-                                  <p className="font-medium">{year.year}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-8 text-right">
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Pendapatan
-                                    </p>
-                                    <p className="font-medium">
-                                      {formatCurrency(year.revenue)}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Laba
-                                    </p>
-                                    <p className="font-medium">
-                                      {formatCurrency(year.profit)}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center p-8 text-muted-foreground">
-                        <p>Data keuangan tidak tersedia</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              <TabsContent value="investments" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Daftar Investasi</CardTitle>
-                    <CardDescription>
-                      Investor yang telah mendanai pinjaman ini
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {loan.lenders && loan.lenders.length > 0 ? (
-                      <div className="space-y-4">
-                        {loan.lenders.map(
-                          (
-                            lender: {
-                              name: string;
-                              lenderId: string;
-                              amount: number;
-                              investmentId: string;
-                              timestamp: string;
-                            },
-                            index: Key | null | undefined
-                          ) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between border-b border-border/50 pb-4 last:border-0 last:pb-0"
-                            >
-                              <div className="space-y-1">
-                                <p className="font-medium">{lender.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  Investor Terverifikasi •{" "}
-                                  {lender.lenderId.substring(0, 8)}...
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Diinvestasikan:{" "}
-                                  {new Date(lender.timestamp).toLocaleString()}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-medium">
-                                  {formatCurrency(lender.amount)}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  {Math.round(
-                                    (lender.amount / loan.amount) * 100
-                                  )}
-                                  % dari pinjaman
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  ID: {lender.investmentId.substring(0, 8)}...
-                                </p>
-                              </div>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center p-8 text-muted-foreground">
-                        <p>Belum ada investasi untuk pinjaman ini</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
               <TabsContent value="credit" className="mt-4">
                 <Card>
                   <CardHeader>

@@ -34,23 +34,70 @@ export interface LoginResponse {
 
 export type BorrowerSummaryResponse = {
   success: boolean;
+  message: string; // Added to capture chaincode's message
   data: {
     borrowerId: string;
     totalBorrowed: number;
     totalPaid: number;
     totalOutstanding: number;
+    totalInterestPaid: number; // Added for interest paid across loans
+    totalPlatformFees: number; // Added for platform fees paid
     activeLoans: number;
     completedLoans: number;
     rejectedLoans: number;
     creditScore: number | null;
+    creditScoreSummary: { // Added for high-level credit score insights
+      score: number;
+      calculatedAt: string;
+      paymentHistoryScore: number;
+      amountsOwedScore: number;
+      creditHistoryScore: number;
+      creditMixScore: number;
+      newCreditScore: number;
+    } | null;
+    creditScoreTrend: { // Added for credit score history
+      score: number;
+      calculatedAt: string;
+    }[];
+    walletBalance: number; // Added for wallet balance
+    identityStatus: { // Added for KYC/identity verification status
+      isVerified: boolean;
+      kycStatus: string; // e.g., "VERIFIED", "PENDING"
+      verifiedAt: string | null;
+    } | null;
+    documentStatus: { // Added for document submission status
+      totalDocuments: number;
+      types: string[]; // e.g., ["KYC", "INCOME_PROOF"]
+    };
     loanSummaries: {
       loanId: string;
       amount: number;
-      status: string; // e.g., "active", "completed", "rejected"
+      status: string; // e.g., "ACTIVE", "COMPLETED", "REJECTED"
       paid: number;
       outstanding: number;
+      interestPaid: number; // Added for interest paid per loan
       interestRate: number;
       term: number;
+      purpose: string; // Added for loan purpose
+      createdAt: string; // Added for loan creation timestamp
+      approvedAt: string | null; // Added for approval timestamp
+      fundedAt: string | null; // Added for funding timestamp
+      completedAt: string | null; // Added for completion timestamp
+      rejectionReason: string | null; // Added for rejection reason
+      repaymentProgress: number; // Added for repayment progress percentage
+      paymentStatusCounts: { // Added for payment performance
+        onTime: number;
+        late1to7: number;
+        lateOver7: number;
+        pending: number;
+      };
+      nextDuePayment: { // Added for next due payment details
+        installmentNumber: number;
+        dueDate: string;
+        amount: number;
+        principal: number;
+        interest: number;
+      } | null;
     }[];
   };
 };
@@ -285,85 +332,56 @@ export interface RegisterParams {
 
   //portolfolio
 
-  export interface PaymentDistribution {
-    transactionId: string;
-    paymentId: number;
-    amountReceived: number;
-    platformFee: number;
-    timestamp: string;
-  }
-  
-   export interface FutureDistribution {
-    installmentNumber: number;
-    dueDate: string;
-    principalShare: number;
-    interestShare: number;
-    platformFee: number;
-    amountAfterFee: number;
-  }
-  
-  export interface LoanDetails {
-    borrowerId: string;
-    purpose: string;
-    amount: number;
-    creditScore: number;
-    fundingProgress: string; // Percentage as string (e.g., "100.00%")
-  }
-  
-  export interface Investment {
-    loanId: string;
-    investmentAmount: number;
-    investmentIds: string[];
-    loanStatus: 'APPROVED' | 'FUNDING' | 'FUNDED' | 'ACTIVE' | 'COMPLETED' | 'PENDING_APPROVAL';
-    interestRate: number;
-    term: number;
-    totalReceived: number;
-    totalPlatformFeeReceived: number;
-    totalFuturePrincipal: number;
-    totalFutureInterest: number;
-    totalFuturePlatformFee: number;
-    expectedReturn: number;
-    paymentDistributions: PaymentDistribution[];
-    futureDistributions: FutureDistribution[];
-    loanDetails: LoanDetails;
-  }
-  
-  export interface LoanStatusDistribution {
-    APPROVED: number;
-    FUNDING: number;
-    FUNDED: string;
-    ACTIVE: number;
-    COMPLETED: number;
-    PENDING_APPROVAL: number;
-  }
-  
-  export interface PerformanceMetrics {
-    roi: number;
-    activeInvestments: number;
-    completedInvestments: number;
-    expectedOverallROI: number;
-  }
-  
-  export interface LenderPortfolioData {
-    lenderId: string;
-    totalInvested: number;
-    totalReceived: number;
-    totalExpectedReturn: number;
-    totalPlatformFees: number;
-    totalFuturePrincipal: number;
-    totalFutureInterest: number;
-    totalFuturePlatformFees: number;
-    investments: Investment[];
-    loanStatusDistribution: LoanStatusDistribution;
-    performanceMetrics: PerformanceMetrics;
-    lastUpdated: string;
-  }
-  
-  export interface PortfolioResponse {
-    data: LenderPortfolioData;
-    timestamp: string;
-  }
-
+  export type LenderPortfolioResponse = {
+    success: boolean;
+    message: string;
+    data: {
+      lenderId: string;
+      walletBalance: number;
+      totalInvested: number;
+      totalReceived: number;
+      totalPlatformFees: number;
+      totalExpectedReturn: number;
+      performanceMetrics: {
+        roi: number;
+        activeInvestments: number;
+        completedInvestments: number;
+        pendingInvestments: number;
+        rejectedInvestments: number;
+        fundingInvestments: number;
+        expectedOverallROI: number;
+        performanceHistory: { period: string; roi: number; totalInvested: number; totalReceived: number }[];
+      };
+      diversification: {
+        byPurpose: Record<string, number>;
+        byTerm: Record<string, number>;
+        byInterestRate: Record<string, number>;
+        byCreditScore: Record<string, number>;
+      };
+      investments: {
+        loanId: string;
+        investmentIds: string[];
+        investmentAmount: number;
+        loanStatus: string;
+        interestRate: number;
+        term: number;
+        purpose: string;
+        borrowerCreditScore: number | null;
+        createdAt: string;
+        fundedAt: string | null;
+        received: number;
+        platformFees: number;
+        futurePrincipal: number;
+        futureInterest: number;
+        expectedReturn: number;
+        fundingProgress: number;
+        nextExpectedPayment: { dueDate: string; amount: number; principal: number; interest: number } | null;
+        paymentStatusCounts: { onTime: number; late1to7: number; lateOver7: number; pending: number } | null;
+        applicationStatus?: string;
+        rejectionReason?: string;
+      }[];
+    };
+  };
 
 
 

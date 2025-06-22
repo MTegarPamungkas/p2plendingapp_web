@@ -60,6 +60,8 @@ interface User {
 export default function BorrowerProfilePage() {
   const { user } = useAuth();
 
+  console.log(user);
+
   // If user is null, show a fallback UI
   if (!user) {
     return (
@@ -132,25 +134,22 @@ export default function BorrowerProfilePage() {
             <CardContent className="flex flex-col items-center text-center">
               <div className="relative mb-6">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage
-                    src={
-                      user.profile.profilePicture ||
-                      "/placeholder.svg?height=96&width=96"
-                    }
+                  {/* <AvatarImage
+                    src={user.profile.profilePicture}
                     alt="Profile"
-                  />
-                  <AvatarFallback className="text-lg">
-                    {getInitials(user.profile.fullName)}
+                  /> */}
+                  <AvatarFallback className=" bg-white text-black text-4xl font-bold font-serif">
+                    {user.profile.fullName?.charAt(0)?.toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
-                <Button
+                {/* <Button
                   size="icon"
                   variant="outline"
                   className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-sm"
                 >
                   <Camera className="h-4 w-4" />
                   <span className="sr-only">Change profile picture</span>
-                </Button>
+                </Button> */}
               </div>
 
               <h3 className="text-xl font-bold mb-1">

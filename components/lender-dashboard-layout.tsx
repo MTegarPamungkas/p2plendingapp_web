@@ -127,7 +127,7 @@ export function LenderDashboardLayout({
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                    <SidebarMenuItem>
+                    {/* <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
                         isActive={isActive("/compliance")}
@@ -137,7 +137,7 @@ export function LenderDashboardLayout({
                           <span>Compliance</span>
                         </Link>
                       </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    </SidebarMenuItem> */}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>

@@ -502,10 +502,6 @@ export default function BorrowerLoanDetailsPage({
                             Retry
                           </Button>
                         </div>
-                      ) : !repaymentScheduleDatas?.installments?.length ? (
-                        <p className="text-muted-foreground">
-                          No repayment schedule available.
-                        </p>
                       ) : (
                         repaymentScheduleDatas?.installments?.map(
                           (installment: any) => (
@@ -579,13 +575,6 @@ export default function BorrowerLoanDetailsPage({
                       )}
                     </div>
                   </CardContent>
-                  <CardFooter>
-                    <Button variant="outline" className="w-full" asChild>
-                      <Link href="/borrower/schedule">
-                        View Complete Schedule
-                      </Link>
-                    </Button>
-                  </CardFooter>
                 </Card>
               </TabsContent>
 

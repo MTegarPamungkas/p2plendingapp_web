@@ -15,9 +15,9 @@ import {
   LoanParams,
   Loan,
   PaginatedLoansResponse,
-  PortfolioResponse,
   InvestmentDetailsResponse,
-  BorrowerSummaryResponse
+  BorrowerSummaryResponse,
+  LenderPortfolioResponse
 } from "../types";
 import { verify } from "crypto";
 import { da } from "date-fns/locale";
@@ -97,16 +97,22 @@ export const userAPI = {
     return response.data;
   },
 
-  // rejectUserVerification: async (
-  //   userId: string,
-  //   reason: string
-  // ): Promise<{ message: string }> => {
-  //   const response = await apiClient.post<{ message: string }>(
-  //     `/v1/identity/users/${userId}/reject`,
-  //     { reason }
-  //   );
-  //   return response.data;
-  // },
+  rejectUserVerification: async (
+    userId: string,
+    rejectionReason: string
+  ): Promise<{ message: string }> => {
+    const requestBody = {
+      userId: userId,
+      rejectionReason: rejectionReason,
+    };
+
+    const response = await apiClient.put<{ message: string }>(
+      `/v1/identity/user/reject`,
+      requestBody
+    );
+    return response.data;
+  },
+
 
   getUserIdentity: async (): Promise<User> => {
     const endpoint = "/v1/identity/me";
@@ -506,8 +512,8 @@ export const loanAPI = {
     return response.data;
   },
 
-  getUserPortfolio: async (): Promise<PortfolioResponse> => {
-    const response = await apiClient.get<PortfolioResponse>(`/v1/loan/user/portfolio`);
+  getUserPortfolio: async (): Promise<LenderPortfolioResponse> => {
+    const response = await apiClient.get<LenderPortfolioResponse>(`/v1/loan/user/portfolio`);
     return response.data;
   },
 
@@ -534,6 +540,22 @@ export const loanAPI = {
 
     const response = await apiClient.put<{ message: string }>(
       `/v1/loan/approve`,
+      requestBody
+    );
+    return response.data;
+  },
+
+  rejectLoan: async (
+    loanId: string,
+    rejectionReason: string
+  ): Promise<{ message: string }> => {
+    const requestBody = {
+      loanId: loanId,
+      rejectionReason: rejectionReason
+    };
+
+    const response = await apiClient.put<{ message: string }>(
+      `/v1/loan/reject`,
       requestBody
     );
     return response.data;

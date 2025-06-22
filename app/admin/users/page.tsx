@@ -56,6 +56,7 @@ import {
   Search,
   Shield,
   UserCheck,
+  XCircle,
 } from "lucide-react";
 import { AdminDashboardLayout } from "@/components/admin-dashboard-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -70,6 +71,8 @@ export default function AdminUsersPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   const getUsers = useCallback(
     () => userAPI.getUsers({ page: 1, limit: 10 }),
@@ -85,6 +88,9 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { mutateAsync: approveUserMutation, loading: approveLoading } =
+    useMutation();
+
+  const { mutateAsync: rejectUserMutation, loading: rejectLoading } =
     useMutation();
 
   // Filter users based on search term, type filter, and status filter
@@ -114,6 +120,8 @@ export default function AdminUsersPage() {
         return "bg-green-500/10 text-green-500";
       case "pending":
         return "bg-yellow-500/10 text-yellow-500";
+      case "rejected":
+        return "bg-red-500/10 text-red-500";
       case "suspended":
         return "bg-red-500/10 text-red-500";
       default:
@@ -128,21 +136,21 @@ export default function AdminUsersPage() {
     setShowApproveDialog(true);
   };
 
+  // Handle reject user
+  const handleRejectUser = (user: User) => {
+    setSelectedUser(user);
+    console.log("Rejecting user:", user);
+    setShowRejectDialog(true);
+    setRejectionReason(""); // Reset rejection reason
+  };
+
   const approvedUser = async () => {
     if (!selectedUser) return;
 
     try {
-      // Data sesuai dengan struktur yang diminta backend
       const verificationData = {
         verificationMethod: "KYC",
-        documents: [
-          // Bisa kosong untuk admin approval, atau isi jika ada dokumen
-          // {
-          //   type: "admin_approval",
-          //   path: "admin/approval",
-          //   hash: "admin_verified"
-          // }
-        ],
+        documents: [],
       };
 
       console.log("Approving user:", selectedUser.id);
@@ -158,7 +166,32 @@ export default function AdminUsersPage() {
       console.log("User approved successfully");
     } catch (error) {
       console.error("Error approving user:", error);
-      // Bisa tambahkan toast notification di sini
+    }
+  };
+
+  const rejectedUser = async () => {
+    if (!selectedUser || !rejectionReason.trim()) return;
+
+    try {
+      console.log(
+        "Rejecting user:",
+        selectedUser.id,
+        "Reason:",
+        rejectionReason
+      );
+
+      await rejectUserMutation(() =>
+        userAPI.rejectUserVerification(selectedUser.id, rejectionReason)
+      );
+
+      refetchUsers();
+      setShowRejectDialog(false);
+      setSelectedUser(null);
+      setRejectionReason("");
+
+      console.log("User rejected successfully");
+    } catch (error) {
+      console.error("Error rejecting user:", error);
     }
   };
 
@@ -186,7 +219,8 @@ export default function AdminUsersPage() {
           <CardHeader>
             <CardTitle>Users</CardTitle>
             <CardDescription>
-              Manage users, approve new registrations, and control access
+              Manage users, approve or reject new registrations, and control
+              access
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -225,6 +259,7 @@ export default function AdminUsersPage() {
                         <SelectItem value="all">All Status</SelectItem>
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
                         <SelectItem value="suspended">Suspended</SelectItem>
                       </SelectContent>
                     </Select>
@@ -259,10 +294,7 @@ export default function AdminUsersPage() {
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
-                                <AvatarImage
-                                  src={"/placeholder.svg"}
-                                  // alt={user.name}
-                                />
+                                <AvatarImage src={"/placeholder.svg"} />
                                 <AvatarFallback>
                                   {user.username.substring(0, 2).toUpperCase()}
                                 </AvatarFallback>
@@ -324,21 +356,30 @@ export default function AdminUsersPage() {
                                   <UserDetailsDialog
                                     user={user}
                                     onApproveUser={handleApproveUser}
+                                    onRejectUser={handleRejectUser}
                                   />
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                {/* <DropdownMenuItem>
                                   <Mail className="mr-2 h-4 w-4" />
                                   Send Message
-                                </DropdownMenuItem>
+                                </DropdownMenuItem> */}
                                 {user.status.toLowerCase() === "pending" && (
-                                  <DropdownMenuItem
-                                    onClick={() => handleApproveUser(user)}
-                                  >
-                                    <UserCheck className="mr-2 h-4 w-4 text-green-500" />
-                                    Approve User
-                                  </DropdownMenuItem>
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() => handleApproveUser(user)}
+                                    >
+                                      <UserCheck className="mr-2 h-4 w-4 text-green-500" />
+                                      Approve User
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleRejectUser(user)}
+                                    >
+                                      <XCircle className="mr-2 h-4 w-4 text-red-500" />
+                                      Reject User
+                                    </DropdownMenuItem>
+                                  </>
                                 )}
-                                {user.status.toLowerCase() === "active" && (
+                                {/* {user.status.toLowerCase() === "active" && (
                                   <DropdownMenuItem>
                                     <Ban className="mr-2 h-4 w-4 text-red-500" />
                                     Suspend User
@@ -362,7 +403,7 @@ export default function AdminUsersPage() {
                                       Verify Identity
                                     </>
                                   )}
-                                </DropdownMenuItem>
+                                </DropdownMenuItem> */}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -412,6 +453,35 @@ export default function AdminUsersPage() {
               className="bg-green-600 hover:bg-green-700"
             >
               Approve User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject User Dialog */}
+      <AlertDialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reject {selectedUser?.username}? Please
+              provide a reason for rejection.
+              <Input
+                className="mt-4"
+                placeholder="Enter rejection reason..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={rejectedUser}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={!rejectionReason.trim() || rejectLoading}
+            >
+              Reject User
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,4 +1,9 @@
 "use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { format, parseISO } from "date-fns";
+import { id } from "date-fns/locale";
 import {
   Card,
   CardContent,
@@ -16,19 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { LenderDashboardLayout } from "@/components/lender-dashboard-layout";
-import {
-  Download,
-  Calendar,
-  Eye,
-  FileText,
-  RefreshCw,
-  Shield,
-} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   PieChart,
   Pie,
   Cell,
@@ -37,43 +35,844 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { Key, useCallback, useEffect, useState } from "react";
-import { loanAPI } from "@/api/apiServices";
-import { useAPI } from "@/hooks/useAPI";
-import { format, parseISO } from "date-fns";
-import { id } from "date-fns/locale";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import {
-  FutureDistribution,
-  Investment,
+  AlertTriangle,
+  Eye,
+  FileText,
+  RefreshCw,
+  Shield,
+  Wallet,
+} from "lucide-react";
+import { LenderDashboardLayout } from "@/components/lender-dashboard-layout";
+import { loanAPI } from "@/api/apiServices";
+import { useAPI } from "@/hooks/useAPI";
+import {
+  LenderPortfolioResponse,
   InvestmentDetailsResponse,
   PaymentDistributionDetails,
-  PortfolioResponse,
+  FutureDistribution,
+  LoanDetails,
 } from "@/types";
-import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 
+// Warna untuk chart
+const COLORS = [
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ef4444",
+  "#64748b",
+];
+const formatCurrency = (value: number | null | undefined) =>
+  value
+    ? value.toLocaleString("id-ID", { style: "currency", currency: "IDR" })
+    : "N/A";
+
+// Antarmuka untuk identitas lender
+interface LenderIdentity {
+  profilePicture?: string;
+}
+
+// Komponen Header Dashboard
+const DashboardHeader = ({
+  lenderId,
+  profilePicture,
+  onRefresh,
+  isLoading,
+}: {
+  lenderId: string;
+  profilePicture?: string;
+  onRefresh: () => void;
+  isLoading: boolean;
+}) => (
+  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="flex items-center gap-4">
+      <Avatar className="h-12 w-12">
+        <AvatarImage src={profilePicture || ""} />
+        <AvatarFallback>{lenderId[0]?.toUpperCase() || "L"}</AvatarFallback>
+      </Avatar>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Lender Dashboard</h1>
+        <p className="text-muted-foreground">
+          Welcome back, {lenderId || "Lender"}
+        </p>
+      </div>
+    </div>
+    <div className="flex gap-2">
+      <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
+        <RefreshCw className="mr-2 h-4 w-4" />
+        Refresh Data
+      </Button>
+      <Button asChild>
+        <Link href="/lender/marketplace">Browse Opportunities</Link>
+      </Button>
+    </div>
+  </div>
+);
+
+// Komponen Kartu Ringkasan
+const SummaryCards = ({ data }: { data: LenderPortfolioResponse["data"] }) => {
+  const formatCurrency = (value: number | null | undefined) =>
+    value
+      ? value.toLocaleString("id-ID", { style: "currency", currency: "IDR" })
+      : "N/A";
+
+  const formatPercentage = (value: number) => `${value}%`;
+
+  return (
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Total Investasi</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {formatCurrency(data.totalInvested)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Dari {data.investments.length} investasi
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Total Diterima</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {formatCurrency(data.totalReceived)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Dari {data.performanceMetrics.activeInvestments} aktif,{" "}
+            {data.performanceMetrics.completedInvestments} selesai
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Saldo Dompet</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {formatCurrency(data.walletBalance)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Tersedia untuk investasi
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">ROI Saat Ini</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div
+            className={`text-2xl font-bold ${
+              data.performanceMetrics.roi >= 0
+                ? "text-emerald-600"
+                : "text-red-600"
+            }`}
+          >
+            {formatPercentage(data.performanceMetrics.roi)}
+          </div>
+          <p
+            className="text-xs text-muted-foreground.markdown
+
+          foreground"
+          >
+            Harapan:{" "}
+            {formatPercentage(data.performanceMetrics.expectedOverallROI)}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Komponen Tab Overview
+const OverviewTab = ({ data }: { data: LenderPortfolioResponse["data"] }) => {
+  const diversificationData = data.diversification.byPurpose
+    ? Object.entries(data.diversification.byPurpose).map(([name, value]) => ({
+        name,
+        value: Number(value),
+      }))
+    : [];
+
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Diversifikasi Investasi</CardTitle>
+          <CardDescription>Berdasarkan tujuan pinjaman</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={diversificationData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={100}
+                label
+              >
+                {diversificationData.map((_, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={COLORS[index % COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Status Investasi</CardTitle>
+          <CardDescription>Rincian berdasarkan status</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={[
+                  {
+                    name: "Aktif",
+                    value: data.performanceMetrics.activeInvestments,
+                  },
+                  {
+                    name: "Pendanaan",
+                    value: data.performanceMetrics.fundingInvestments,
+                  },
+                  {
+                    name: "Menunggu",
+                    value: data.performanceMetrics.pendingInvestments,
+                  },
+                  {
+                    name: "Selesai",
+                    value: data.performanceMetrics.completedInvestments,
+                  },
+                  {
+                    name: "Ditolak",
+                    value: data.performanceMetrics.rejectedInvestments,
+                  },
+                ].filter((d) => d.value > 0)}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                label
+              >
+                {["#3b82f6", "#f59e0b", "#10b981", "#ef4444"].map(
+                  (color, index) => (
+                    <Cell key={`cell-${index}`} fill={color} />
+                  )
+                )}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Komponen Tab Investasi
+const InvestmentsTab = ({
+  data,
+  onSelectInvestment,
+}: {
+  data: LenderPortfolioResponse["data"];
+  onSelectInvestment: (id: string) => void;
+}) => {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Daftar Investasi</CardTitle>
+        <CardDescription>
+          Semua investasi aktif, menunggu, dan selesai
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID Pinjaman</TableHead>
+              <TableHead>Tujuan</TableHead>
+              <TableHead>Jumlah</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Jangka Waktu</TableHead>
+              <TableHead>Pembayaran Berikutnya</TableHead>
+              <TableHead>Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.investments.map((inv) => (
+              <TableRow key={inv.loanId}>
+                <TableCell>{inv.loanId.slice(0, 8)}...</TableCell>
+                <TableCell>{inv.purpose}</TableCell>
+                <TableCell>{formatCurrency(inv.investmentAmount)}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant={
+                      inv.loanStatus === "ACTIVE" || inv.loanStatus === "FUNDED"
+                        ? "default"
+                        : inv.loanStatus === "PENDING_APPROVAL" ||
+                          inv.loanStatus === "APPROVED"
+                        ? "secondary"
+                        : inv.loanStatus === "COMPLETED"
+                        ? "outline"
+                        : "destructive"
+                    }
+                  >
+                    {inv.applicationStatus || inv.loanStatus}
+                  </Badge>
+                </TableCell>
+                <TableCell>{inv.term} bulan</TableCell>
+                <TableCell>
+                  {inv.nextExpectedPayment
+                    ? `${formatCurrency(
+                        inv.nextExpectedPayment.amount
+                      )} (${format(
+                        parseISO(inv.nextExpectedPayment.dueDate),
+                        "d MMM yyyy",
+                        { locale: id }
+                      )})`
+                    : "N/A"}
+                </TableCell>
+                <TableCell>
+                  {inv.investmentIds.map((id) => (
+                    <Button
+                      key={id}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onSelectInvestment(id)}
+                      className="mr-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  ))}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Komponen Tab Performa
+const PerformanceTab = ({
+  data,
+}: {
+  data: LenderPortfolioResponse["data"];
+}) => (
+  <Card>
+    <CardHeader>
+      <CardTitle>Riwayat Performa</CardTitle>
+      <CardDescription>ROI Anda dari waktu ke waktu</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={data.performanceMetrics.performanceHistory || []}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="period" />
+          <YAxis />
+          <Tooltip formatter={(value: number) => `${value}%`} />
+          <Line type="monotone" dataKey="roi" stroke="#3b82f6" />
+        </LineChart>
+      </ResponsiveContainer>
+    </CardContent>
+  </Card>
+);
+
+// Komponen Dialog Detail Investasi
+const InvestmentDetailsDialog = ({
+  investmentId,
+  investmentData,
+  logsData,
+  investmentLoading,
+  investmentError,
+  logsLoading,
+  logsError,
+  onRefetch,
+  onClose,
+}: {
+  investmentId: string | null;
+  investmentData: InvestmentDetailsResponse | null;
+  logsData: any | null;
+  investmentLoading: boolean;
+  investmentError: string | null;
+  logsLoading: boolean;
+  logsError: string | null;
+  onRefetch: () => void;
+  onClose: () => void;
+}) => {
+  const formatCurrency = (value: number | null | undefined) =>
+    value
+      ? value.toLocaleString("id-ID", { style: "currency", currency: "IDR" })
+      : "N/A";
+
+  return (
+    <Dialog open={!!investmentId} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Detail Investasi</DialogTitle>
+        </DialogHeader>
+        {investmentLoading ? (
+          <div className="text-center">Memuat...</div>
+        ) : investmentError ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>
+              Gagal memuat detail investasi: {investmentError}.{" "}
+              <Button variant="link" onClick={onRefetch} className="p-0 h-auto">
+                Coba lagi
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : investmentData?.data ? (
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Ringkasan Investasi</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      ID Investasi
+                    </p>
+                    <p className="font-medium">
+                      {investmentData.data.investmentId}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">ID Pinjaman</p>
+                    <p className="font-medium">{investmentData.data.loanId}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Jumlah Investasi
+                    </p>
+                    <p className="font-medium">
+                      {formatCurrency(investmentData.data.amount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Total Diterima
+                    </p>
+                    <p className="font-medium">
+                      {formatCurrency(
+                        investmentData.data.repaymentDetails?.totalReceived
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Pengembalian Diharapkan
+                    </p>
+                    <p className="font-medium">
+                      {formatCurrency(
+                        investmentData.data.repaymentDetails
+                          ?.expectedTotalReturn
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Biaya Platform
+                    </p>
+                    <p className="font-medium">
+                      {formatCurrency(
+                        investmentData.data.repaymentDetails?.totalPlatformFee
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <p className="font-medium">
+                      {investmentData.data.loanStatus}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Distribusi Pembayaran</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {investmentData.data.repaymentDetails?.paymentDistributions
+                  .length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Angsuran</TableHead>
+                        <TableHead>Tanggal</TableHead>
+                        <TableHead>Pokok</TableHead>
+                        <TableHead>Bunga</TableHead>
+                        <TableHead>Biaya Platform</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {investmentData.data.repaymentDetails.paymentDistributions.map(
+                        (dist: PaymentDistributionDetails) => (
+                          <TableRow key={dist.transactionId}>
+                            <TableCell>{dist.installmentNumber}</TableCell>
+                            <TableCell>
+                              {format(parseISO(dist.timestamp), "d MMM yyyy", {
+                                locale: id,
+                              })}
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(dist.principalShare)}
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(dist.interestShare)}
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(dist.platformFee)}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-muted-foreground">
+                    Belum ada distribusi pembayaran.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Pembayaran Mendatang</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {investmentData.data.repaymentDetails?.futureDistributions
+                  .length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Angsuran</TableHead>
+                        <TableHead>Tanggal Jatuh Tempo</TableHead>
+                        <TableHead>Pokok</TableHead>
+                        <TableHead>Bunga</TableHead>
+                        <TableHead>Biaya Platform</TableHead>
+                        <TableHead>Jumlah Bersih</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {investmentData.data.repaymentDetails.futureDistributions.map(
+                        (dist: FutureDistribution) => (
+                          <TableRow key={dist.installmentNumber}>
+                            <TableCell>{dist.installmentNumber}</TableCell>
+                            <TableCell>
+                              {format(parseISO(dist.dueDate), "d MMM yyyy", {
+                                locale: id,
+                              })}
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(dist.principalShare)}
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(dist.interestShare)}
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(dist.platformFee)}
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(dist.amountAfterFee)}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      )}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-muted-foreground">
+                    Tidak ada pembayaran mendatang.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Jadwal Pembayaran</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {investmentData.data.repaymentDetails == null ? (
+                  <p className="text-muted-foreground">
+                    Belum ada jadwal pembayaran.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Total Angsuran
+                      </p>
+                      <p className="font-medium">
+                        {investmentData.data.repaymentDetails.totalInstallments}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Angsuran Lunas
+                      </p>
+                      <p className="font-medium">
+                        {investmentData.data.repaymentDetails.paidInstallments}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Pembayaran Bulanan
+                      </p>
+                      <p className="font-medium">
+                        {formatCurrency(
+                          investmentData.data.repaymentDetails
+                            .standardMonthlyPayment
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Total Bunga
+                      </p>
+                      <p className="font-medium">
+                        {formatCurrency(
+                          investmentData.data.repaymentDetails.totalInterest
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Detail Pinjaman</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Tujuan</p>
+                    <p className="font-medium">
+                      {investmentData.data.loanDetails.purpose}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Jumlah Total Pinjaman
+                    </p>
+                    <p className="font-medium">
+                      {formatCurrency(
+                        investmentData.data.loanDetails.totalAmount
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Jangka Waktu
+                    </p>
+                    <p className="font-medium">
+                      {investmentData.data.loanDetails.term} bulan
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Progres Pendanaan
+                    </p>
+                    <p className="font-medium">
+                      {investmentData.data.loanDetails.fundingProgress}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Dibuat</p>
+                    <p className="font-medium">
+                      {format(
+                        parseISO(investmentData.data.loanDetails.createdAt),
+                        "d MMM yyyy",
+                        { locale: id }
+                      )}
+                    </p>
+                  </div>
+                  {investmentData.data.loanDetails.approvedAt && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Disetujui</p>
+                      <p className="font-medium">
+                        {format(
+                          parseISO(investmentData.data.loanDetails.approvedAt),
+                          "d MMM yyyy",
+                          { locale: id }
+                        )}
+                      </p>
+                    </div>
+                  )}
+                  {investmentData.data.loanDetails.fundedAt && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Didanai</p>
+                      <p className="font-medium">
+                        {format(
+                          parseISO(investmentData.data.loanDetails.fundedAt),
+                          "d MMM yyyy",
+                          { locale: id }
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Log Pinjaman</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {logsLoading ? (
+                  <div className="text-center">Memuat log...</div>
+                ) : logsError ? (
+                  <div className="text-red-600">Error: {logsError}</div>
+                ) : (logsData?.data ?? []).length > 0 ? (
+                  <div className="space-y-3">
+                    {logsData.data.map((log: any, index: number) => (
+                      <div
+                        key={index}
+                        className="group relative rounded-lg border bg-card p-4 hover:shadow-md"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="rounded-full bg-primary/10 p-2">
+                              <FileText className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <Badge variant="secondary">
+                                {log.action.replace(/_/g, " ").toUpperCase()}
+                              </Badge>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Dilakukan oleh:{" "}
+                                <span className="font-medium">
+                                  {log.performedBy}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
+                            <Shield className="h-3 w-3" />
+                            Terverifikasi
+                          </div>
+                        </div>
+                        <div className="mb-3">
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(log.timestamp).toLocaleString("id-ID", {
+                              dateStyle: "full",
+                              timeStyle: "short",
+                            })}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center py-1">
+                              <span className="text-xs text-muted-foreground uppercase">
+                                ID Transaksi
+                              </span>
+                              <code className="text-xs bg-muted px-2 py-1 rounded">
+                                {log.transactionId.slice(0, 12)}...
+                              </code>
+                            </div>
+                            {log.data.loanId && (
+                              <div className="flex justify-between items-center py-1">
+                                <span className="text-xs text-muted-foreground uppercase">
+                                  ID Pinjaman
+                                </span>
+                                <code className="text-xs bg-muted px-2 py-1 rounded">
+                                  {log.data.loanId.slice(0, 12)}...
+                                </code>
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            {log.data.amount && (
+                              <div className="flex justify-between items-center py-1">
+                                <span className="text-xs text-muted-foreground uppercase">
+                                  Jumlah
+                                </span>
+                                <span className="text-sm font-semibold text-green-600">
+                                  {formatCurrency(log.data.amount)}
+                                </span>
+                              </div>
+                            )}
+                            {log.data.creditScore && (
+                              <div className="flex justify-between items-center py-1">
+                                <span className="text-xs text-muted-foreground uppercase">
+                                  Skor Kredit
+                                </span>
+                                <span className="text-sm font-semibold">
+                                  {log.data.creditScore}/850
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">
+                    Tidak ada log untuk pinjaman ini.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// Komponen Utama
 export default function PortfolioPage() {
   const [selectedInvestmentId, setSelectedInvestmentId] = useState<
     string | null
   >(null);
   const [loanId, setLoanId] = useState<string | null>(null);
+  const [lenderIdentity, setLenderIdentity] = useState<LenderIdentity | null>(
+    null
+  );
 
-  // Fetch portfolio data
+  // Ambil data portofolio
   const getUserPortfolio = useCallback(() => loanAPI.getUserPortfolio(), []);
   const {
     data: portfolioData,
     loading: portfolioLoading,
     error: portfolioError,
     refetch: refetchPortfolio,
-  } = useAPI<PortfolioResponse>(getUserPortfolio, []);
+  } = useAPI<LenderPortfolioResponse>(getUserPortfolio, []);
 
-  // Fetch investment details when an investment is selected
+  // Ambil detail investasi
   const getInvestmentDetails = useCallback(
     () =>
       selectedInvestmentId
@@ -81,906 +880,119 @@ export default function PortfolioPage() {
         : Promise.resolve(null),
     [selectedInvestmentId]
   );
-
   const {
     data: investmentDetailsData,
     loading: investmentDetailsLoading,
     error: investmentDetailsError,
+    refetch: refetchInvestmentDetails,
   } = useAPI<InvestmentDetailsResponse | null>(getInvestmentDetails, [
     selectedInvestmentId,
   ]);
 
-  // Prepare investment distribution data for doughnut chart
-  const investmentDistributionData = (() => {
-    if (!portfolioData?.data.investments) return [];
-
-    return portfolioData.data.investments.map((inv) => ({
-      loanId: inv.loanId.slice(0, 8) + "...",
-      value: inv.investmentAmount,
-      color:
-        inv.loanId === "3a75ba710dae83292b335acd3d67b2c9"
-          ? "#10b981"
-          : "#f59e0b",
-    }));
-  })();
-
-  // Fetch loan logs
-  const getLogsLoan = useCallback(() => {
-    if (!loanId) return Promise.resolve(null);
-    return loanAPI.getLogsLoan(loanId);
-  }, [loanId]);
-
+  // Ambil log pinjaman
+  const getLogsLoan = useCallback(
+    () => (loanId ? loanAPI.getLogsLoan(loanId) : Promise.resolve(null)),
+    [loanId]
+  );
   const {
     data: logsData,
     loading: logsLoading,
     error: logsError,
-    refetch: logsRefetch,
-  } = useAPI<any>(getLogsLoan, [loanId]);
+  } = useAPI<any | null>(getLogsLoan, [loanId]);
 
+  // Ambil identitas lender (mock)
+  useEffect(() => {
+    setLenderIdentity({ profilePicture: undefined }); // Ganti dengan panggilan API sebenarnya
+  }, []);
+
+  // Perbarui loanId berdasarkan detail investasi
   useEffect(() => {
     if (investmentDetailsData?.data?.loanId) {
       setLoanId(investmentDetailsData.data.loanId);
     }
   }, [investmentDetailsData]);
 
-  // Prepare loan status distribution for pie chart
-  const loanStatusData = portfolioData?.data.loanStatusDistribution
-    ? Object.entries(portfolioData.data.loanStatusDistribution)
-        .filter(([_, value]) => Number(value) > 0)
-        .map(([status, value]) => ({
-          name: status,
-          value: Number(value),
-          color:
-            {
-              ACTIVE: "#3b82f6",
-              COMPLETED: "#10b981",
-              FUNDING: "#f59e0b",
-              APPROVED: "#8b5cf6",
-              FUNDED: "#ef4444",
-              PENDING_APPROVAL: "#64748b",
-            }[status] || "#d1d5db",
-        }))
-    : [];
-
-  // Formatters
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(value);
-
-  const formatPercentage = (value: number) => `${value}%`;
+  // Format mata uang
+  const formatCurrency = (value: number | null | undefined) =>
+    value
+      ? value.toLocaleString("id-ID", { style: "currency", currency: "IDR" })
+      : "N/A";
 
   return (
     <LenderDashboardLayout>
-      <div className="flex flex-col gap-6 p-6 min-h-screen">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">Welcome back, John Doe</p>
-          </div>
-          <Button asChild>
-            <Link href="/lender/marketplace">Browse Opportunities</Link>
-          </Button>
-        </div>
+      <div className="flex flex-col gap-6 p-6 min-h-screen max-w-7xl mx-auto">
+        <DashboardHeader
+          lenderId={portfolioData?.data.lenderId || "Lender"}
+          profilePicture={lenderIdentity?.profilePicture}
+          onRefresh={refetchPortfolio}
+          isLoading={portfolioLoading}
+        />
 
-        {/* Summary Cards */}
-        {portfolioLoading ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardHeader>
-                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-8 bg-gray-200 rounded w-3/4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2 mt-2"></div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : portfolioError ? (
-          <Card>
-            <CardContent className="pt-6 text-center text-red-600">
-              Error: {portfolioError}
-            </CardContent>
-          </Card>
-        ) : portfolioData ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-300">
-                  Total Investasi
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatCurrency(portfolioData.data.totalInvested)}
-                </div>
-                {/* <p className="text-xs text-gray-400">
-                  Diperbarui{" "}
-                  {format(
-                    new Date(portfolioData.data.lastUpdated),
-                    "d MMM yyyy",
-                    { locale: id }
-                  )}
-                </p> */}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-300">
-                  Total Diterima
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-300">
-                  {formatCurrency(portfolioData.data.totalReceived)}
-                </div>
-                <p className="text-xs text-gray-400">
-                  Dari{" "}
-                  {portfolioData.data.investments.reduce(
-                    (total, inv) => total + inv.investmentIds.length,
-                    0
-                  )}{" "}
-                  investasi
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-300">
-                  ROI Saat Ini
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-2xl font-bold ${
-                    portfolioData.data.performanceMetrics.roi >= 0
-                      ? "text-emerald-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {formatPercentage(portfolioData.data.performanceMetrics.roi)}
-                </div>
-                <p className="text-xs text-gray-400">
-                  {portfolioData.data.performanceMetrics.roi >= 0 ? "+" : ""}
-                  {portfolioData.data.performanceMetrics.expectedOverallROI}%
-                  Roi diharapkan
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-300">
-                  Ekspektasi Pengembalian
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-300">
-                  {formatCurrency(portfolioData.data.totalExpectedReturn)}
-                </div>
-                <p className="text-xs text-gray-400">
-                  Termasuk bunga masa depan
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        ) : null}
+        {portfolioLoading && (
+          <Alert className="bg-blue-50 border-blue-200">
+            <AlertTitle>Memuat</AlertTitle>
+            <AlertDescription>
+              Sedang mengambil data portofolio...
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {/* Tabs */}
-        <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-[400px] p-1 rounded-lg">
-            <TabsTrigger value="overview" className="rounded-md text-gray-300">
-              Ringkasan
-            </TabsTrigger>
-            <TabsTrigger
-              value="investments"
-              className="rounded-md text-gray-300"
-            >
-              Investasi
-            </TabsTrigger>
-          </TabsList>
+        {portfolioError && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>
+              Gagal memuat portofolio: {portfolioError}.{" "}
+              <Button
+                variant="link"
+                onClick={refetchPortfolio}
+                className="p-0 h-auto"
+              >
+                Coba lagi
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="mt-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Distribusi Investasi</CardTitle>
-                  <CardDescription>
-                    Proporsi investasi Anda per pinjaman
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={investmentDistributionData}
-                        dataKey="value"
-                        nameKey="loanId"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        label
-                      >
-                        {investmentDistributionData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value: number) => formatCurrency(value)}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Distribusi Status Pinjaman</CardTitle>
-                  <CardDescription>
-                    Komposisi status investasi Anda
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={loanStatusData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        label
-                      >
-                        {loanStatusData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+        {portfolioData && (
+          <>
+            <SummaryCards data={portfolioData.data} />
+            <Tabs defaultValue="overview" className="mt-6">
+              <TabsList className="grid w-full max-w-lg grid-cols-3">
+                <TabsTrigger value="overview">Ringkasan</TabsTrigger>
+                <TabsTrigger value="investments">Investasi</TabsTrigger>
+                <TabsTrigger value="performance">Performa</TabsTrigger>
+              </TabsList>
+              <TabsContent value="overview" className="mt-6">
+                <OverviewTab data={portfolioData.data} />
+              </TabsContent>
+              <TabsContent value="investments" className="mt-6">
+                <InvestmentsTab
+                  data={portfolioData.data}
+                  onSelectInvestment={setSelectedInvestmentId}
+                />
+              </TabsContent>
+              <TabsContent value="performance" className="mt-6">
+                <PerformanceTab data={portfolioData.data} />
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
 
-          {/* Investments Tab */}
-          <TabsContent value="investments" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Daftar Investasi</CardTitle>
-                <CardDescription>
-                  Semua investasi aktif dan selesai
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {portfolioLoading ? (
-                  <div className="text-center">Memuat...</div>
-                ) : portfolioData ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID Investasi</TableHead>
-                        <TableHead>ID Pinjaman</TableHead>
-                        <TableHead>Jumlah Investasi</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Suku Bunga</TableHead>
-                        <TableHead>Hasil yang Diharapkan</TableHead>
-                        <TableHead>Aksi</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {portfolioData.data.investments.map((inv: Investment) => (
-                        <TableRow key={inv.loanId}>
-                          <TableCell>
-                            <span title={inv.investmentIds.join(", ")}>
-                              {inv.investmentIds
-                                .map((id) => id.slice(0, 8) + "...")
-                                .join(", ")
-                                .slice(0, 20) +
-                                (inv.investmentIds.length > 1 ? "..." : "")}
-                            </span>
-                          </TableCell>
-                          <TableCell>{inv.loanId.slice(0, 8)}...</TableCell>
-                          <TableCell>
-                            {formatCurrency(inv.investmentAmount)}
-                          </TableCell>
-                          <TableCell>{inv.loanStatus}</TableCell>
-                          <TableHead>
-                            {formatPercentage(inv.interestRate * 100)}
-                          </TableHead>
-                          <TableCell>
-                            {formatCurrency(inv.expectedReturn)}
-                          </TableCell>
-                          <TableCell>
-                            {inv.investmentIds.map((investmentId: string) => (
-                              <Button
-                                key={investmentId}
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setSelectedInvestmentId(investmentId)
-                                }
-                                className="mr-2"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            ))}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : null}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        {/* Investment Details Dialog */}
-        <Dialog
-          open={!!selectedInvestmentId}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedInvestmentId(null);
-              setLoanId(null); // Reset loanId saat dialog ditutup
-            }
+        <InvestmentDetailsDialog
+          investmentId={selectedInvestmentId}
+          investmentData={investmentDetailsData}
+          logsData={logsData}
+          investmentLoading={investmentDetailsLoading}
+          investmentError={investmentDetailsError}
+          logsLoading={logsLoading}
+          logsError={logsError}
+          onRefetch={refetchInvestmentDetails}
+          onClose={() => {
+            setSelectedInvestmentId(null);
+            setLoanId(null);
           }}
-        >
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Detail Investasi</DialogTitle>
-            </DialogHeader>
-            {investmentDetailsLoading ? (
-              <div className="text-center">Memuat...</div>
-            ) : investmentDetailsError ? (
-              <div className="text-red-600">
-                Error: {investmentDetailsError}
-              </div>
-            ) : investmentDetailsData ? (
-              <div className="grid gap-6">
-                {/* Investment Summary */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Ringkasan Investasi</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-300">ID Investasi</p>
-                        <p className="font-medium">
-                          {investmentDetailsData.data.investmentId}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">ID Pinjaman</p>
-                        <p className="font-medium">
-                          {investmentDetailsData.data.loanId}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">Total Investasi</p>
-                        <p className="font-medium">
-                          {formatCurrency(investmentDetailsData.data.amount)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">Total Diterima</p>
-                        <p className="font-medium">
-                          {formatCurrency(
-                            investmentDetailsData.data.repaymentDetails
-                              .totalReceived
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">ROI</p>
-                        <p
-                          className={`font-medium ${
-                            investmentDetailsData.data.repaymentDetails.roi >= 0
-                              ? "text-emerald-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {formatPercentage(
-                            investmentDetailsData.data.repaymentDetails.roi
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">
-                          Ekspektasi Pengembalian
-                        </p>
-                        <p className="font-medium">
-                          {formatCurrency(
-                            investmentDetailsData.data.repaymentDetails
-                              .expectedTotalReturn
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">
-                          Total Biaya Platform
-                        </p>
-                        <p className="font-medium">
-                          {formatCurrency(
-                            investmentDetailsData.data.repaymentDetails
-                              .totalPlatformFee
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">Status</p>
-                        <p className="font-medium">
-                          {investmentDetailsData.data.loanStatus}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Payment Distributions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Distribusi Pembayaran</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {investmentDetailsData.data.repaymentDetails
-                      .paymentDistributions?.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Angsuran</TableHead>
-                            <TableHead>Tanggal</TableHead>
-                            <TableHead>Pokok</TableHead>
-                            <TableHead>Bunga</TableHead>
-                            <TableHead>Biaya</TableHead>
-                            <TableHead>Net</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {investmentDetailsData.data.repaymentDetails.paymentDistributions.map(
-                            (dist: PaymentDistributionDetails) => (
-                              <TableRow key={dist.transactionId}>
-                                <TableCell>{dist.installmentNumber}</TableCell>
-                                <TableCell>
-                                  {format(
-                                    new Date(dist.timestamp),
-                                    "d MMM yyyy",
-                                    { locale: id }
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.principalShare)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.interestShare)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.platformFee)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.amountReceived)}
-                                </TableCell>
-                              </TableRow>
-                            )
-                          )}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <p className="text-gray-400">
-                        Belum ada distribusi pembayaran untuk investasi ini.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Future Distributions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Proyeksi Pembayaran</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {investmentDetailsData.data.repaymentDetails
-                      .futureDistributions?.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Angsuran</TableHead>
-                            <TableHead>Jatuh Tempo</TableHead>
-                            <TableHead>Pokok</TableHead>
-                            <TableHead>Bunga</TableHead>
-                            <TableHead>Total</TableHead>
-                            <TableHead>Biaya</TableHead>
-                            <TableHead>Net</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {investmentDetailsData.data.repaymentDetails.futureDistributions.map(
-                            (dist: FutureDistribution) => (
-                              <TableRow key={dist.installmentNumber}>
-                                <TableCell>{dist.installmentNumber}</TableCell>
-                                <TableCell>
-                                  {format(
-                                    new Date(dist.dueDate),
-                                    "d MMM yyyy",
-                                    { locale: id }
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.principalShare)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.interestShare)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.totalShare)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.platformFee)}
-                                </TableCell>
-                                <TableCell>
-                                  {formatCurrency(dist.amountAfterFee)}
-                                </TableCell>
-                              </TableRow>
-                            )
-                          )}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <p className="text-gray-400">
-                        Belum ada proyeksi pembayaran untuk investasi ini.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Loan Details */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span>Detail Pinjaman</span>
-                      {/* <Link
-                        href={`/lender/marketplace/${investmentDetailsData.data.loanId}`}
-                      >
-                        <Button variant="outline" size="sm">
-                          <Eye className="mr-2 h-4 w-4" />
-                          Lihat Detail Loan
-                        </Button>
-                      </Link> */}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* <div>
-                        <p className="text-sm text-gray-300">Peminjam</p>
-                        <p className="font-medium">
-                          {investmentDetailsData.data.loanDetails.borrowerId}
-                        </p>
-                      </div> */}
-                      <div>
-                        <p className="text-sm text-gray-300">Tujuan</p>
-                        <p className="font-medium">
-                          {investmentDetailsData.data.loanDetails.purpose}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">Jumlah Pinjaman</p>
-                        <p className="font-medium">
-                          {formatCurrency(
-                            investmentDetailsData.data.loanDetails.totalAmount
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">Skor Kredit</p>
-                        <p className="font-medium">
-                          {/* {investmentDetailsData.data.loanDetails.creditScore} */}
-                          0
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">
-                          Progres Pendanaan
-                        </p>
-                        <p className="font-medium">
-                          {
-                            investmentDetailsData.data.loanDetails
-                              .fundingProgress
-                          }
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-300">Dibuat</p>
-                        <p className="font-medium">
-                          {format(
-                            new Date(
-                              investmentDetailsData.data.loanDetails.createdAt
-                            ),
-                            "d MMM yyyy",
-                            { locale: id }
-                          )}
-                        </p>
-                      </div>
-                      {investmentDetailsData.data.loanDetails.approvedAt && (
-                        <div>
-                          <p className="text-sm text-gray-300">Disetujui</p>
-                          <p className="font-medium">
-                            {format(
-                              new Date(
-                                investmentDetailsData.data.loanDetails.approvedAt
-                              ),
-                              "d MMM yyyy",
-                              { locale: id }
-                            )}
-                          </p>
-                        </div>
-                      )}
-                      {investmentDetailsData.data.loanDetails.fundedAt && (
-                        <div>
-                          <p className="text-sm text-gray-300">Didanai</p>
-                          <p className="font-medium">
-                            {format(
-                              new Date(
-                                investmentDetailsData.data.loanDetails.fundedAt
-                              ),
-                              "d MMM yyyy",
-                              { locale: id }
-                            )}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Repayment Schedule
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Jadwal Pembayaran</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {investmentDetailsData.data.repaymentSchedule ? (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-300">
-                            Total Angsuran
-                          </p>
-                          <p className="font-medium">
-                            {
-                              investmentDetailsData.data.repaymentSchedule
-                                .totalInstallments
-                            }
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-300">
-                            Angsuran Dibayar
-                          </p>
-                          <p className="font-medium">
-                            {
-                              investmentDetailsData.data.repaymentSchedule
-                                .paidInstallments
-                            }
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-300">
-                            Pembayaran Bulanan
-                          </p>
-                          <p className="font-medium">
-                            {formatCurrency(
-                              investmentDetailsData.data.repaymentSchedule
-                                .standardMonthlyPayment
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-300">Total Bunga</p>
-                          <p className="font-medium">
-                            {formatCurrency(
-                              investmentDetailsData.data.repaymentSchedule
-                                .totalInterest
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-gray-400">
-                        Jadwal pembayaran belum tersedia karena pinjaman masih
-                        dalam status {investmentDetailsData.data.loanStatus}.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card> */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Log Pinjaman</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {logsLoading ? (
-                      <div className="text-center">Memuat log...</div>
-                    ) : logsError ? (
-                      <div className="text-red-600">Error: {logsError}</div>
-                    ) : logsData?.data?.length > 0 ? (
-                      <div className="space-y-3">
-                        {logsData.data.map(
-                          (log: any, index: Key | null | undefined) => (
-                            <div
-                              key={index}
-                              className="group relative overflow-hidden rounded-lg border bg-card p-4 transition-all hover:shadow-md hover:border-primary/20"
-                            >
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-shrink-0 rounded-full bg-primary/10 p-2">
-                                    <FileText className="h-4 w-4 text-primary" />
-                                  </div>
-                                  <div>
-                                    <Badge
-                                      variant="secondary"
-                                      className="bg-primary/10 text-primary border-primary/20 font-medium"
-                                    >
-                                      {log.action
-                                        .replace(/_/g, " ")
-                                        .toUpperCase()}
-                                    </Badge>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      Dilakukan oleh:{" "}
-                                      <span className="font-medium">
-                                        {log.performedBy}
-                                      </span>
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
-                                  <Shield className="h-3 w-3" />
-                                  Verified
-                                </div>
-                              </div>
-
-                              <div className="mb-3">
-                                <p className="text-sm text-muted-foreground">
-                                  {new Date(log.timestamp).toLocaleString(
-                                    "id-ID",
-                                    {
-                                      dateStyle: "full",
-                                      timeStyle: "short",
-                                    }
-                                  )}
-                                </p>
-                              </div>
-
-                              <div className="space-y-2">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  <div className="space-y-2">
-                                    <div className="flex justify-between items-center py-1">
-                                      <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                                        Transaction ID
-                                      </span>
-                                      <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                                        {log.transactionId.substring(0, 12)}
-                                        ...
-                                      </code>
-                                    </div>
-
-                                    {log.data.loanId && (
-                                      <div className="flex justify-between items-center py-1">
-                                        <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                                          Loan ID
-                                        </span>
-                                        <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                                          {log.data.loanId.substring(0, 12)}
-                                          ...
-                                        </code>
-                                      </div>
-                                    )}
-
-                                    {log.data.scheduleId && (
-                                      <div className="flex justify-between items-center py-1">
-                                        <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                                          Schedule ID
-                                        </span>
-                                        <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                                          {log.data.scheduleId.substring(0, 12)}
-                                          ...
-                                        </code>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    {log.data.amount && (
-                                      <div className="flex justify-between items-center py-1">
-                                        <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                                          Jumlah
-                                        </span>
-                                        <span className="text-sm font-semibold text-green-600">
-                                          {formatCurrency(log.data.amount)}
-                                        </span>
-                                      </div>
-                                    )}
-
-                                    {log.data.creditScore && (
-                                      <div className="flex justify-between items-center py-1">
-                                        <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                                          Skor Kredit
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-sm font-semibold">
-                                            {log.data.creditScore}/850
-                                          </span>
-                                          <div className="w-12 h-2 bg-muted rounded-full overflow-hidden">
-                                            <div
-                                              className="h-full bg-gradient-to-r from-red-400 via-yellow-400 to-green-400"
-                                              style={{
-                                                width: `${
-                                                  (log.data.creditScore / 850) *
-                                                  100
-                                                }%`,
-                                              }}
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {log.data.installments && (
-                                      <div className="flex justify-between items-center py-1">
-                                        <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                                          Angsuran
-                                        </span>
-                                        <span className="text-sm font-semibold">
-                                          {log.data.installments}x
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {log.data.distributionDetails && (
-                                  <div className="mt-3 p-3 bg-muted/30 rounded-md border-l-4 border-primary">
-                                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                                      Detail Distribusi
-                                    </p>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm font-semibold text-primary">
-                                        {formatCurrency(
-                                          log.data.distributionDetails.amount
-                                        )}
-                                      </span>
-                                      <code className="text-xs bg-background px-2 py-1 rounded font-mono">
-                                        ke{" "}
-                                        {log.data.distributionDetails.toWallet.substring(
-                                          0,
-                                          8
-                                        )}
-                                        ...
-                                      </code>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-gray-400">
-                        Belum ada log untuk pinjaman ini.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            ) : null}
-          </DialogContent>
-        </Dialog>
+        />
       </div>
     </LenderDashboardLayout>
   );

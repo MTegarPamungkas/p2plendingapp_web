@@ -1,4 +1,3 @@
-// contexts/AuthContext.tsx
 import React, {
   createContext,
   useContext,
@@ -48,45 +47,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [token, setToken] = useState<string | null>(null);
 
-  useEffect(() => {
-    const checkAuth = async (): Promise<void> => {
-      if (typeof window === "undefined") {
-        setLoading(false);
-        return;
-      }
-
-      const savedToken = localStorage.getItem("authToken");
-      if (savedToken) {
-        try {
-          const response = await apiClient.get<{
-            data: { user: User };
-          }>("/v1/identity/me");
-
-          setUser({
-            id: response.data.data.user.id,
-            username: response.data.data.user.username,
-            email: response.data.data.user.email,
-            role: response.data.data.user.role,
-            blockhainUserId: response.data.data.user.blockhainUserId,
-            profile: response.data.data.user.profile,
-            lastLogin: response.data.data.user.lastLogin,
-            phoneNumber: response.data.data.user.phoneNumber,
-            createdAt: response.data.data.user.createdAt,
-            documents: response.data.data.user.documents,
-            bankAccounts: response.data.data.user.bankAccounts,
-            businessProfile: response.data.data.user.businessProfile,
-            status: "active",
-            verified: response.data.data.user.verified,
-          });
-          setToken(savedToken);
-        } catch (error) {
-          localStorage.removeItem("authToken");
-          setToken(null);
-        }
-      }
+  const checkAuth = async (): Promise<void> => {
+    if (typeof window === "undefined") {
       setLoading(false);
-    };
+      return;
+    }
 
+    const savedToken = localStorage.getItem("authToken");
+    if (savedToken) {
+      try {
+        const response = await apiClient.get<{
+          data: { user: User };
+        }>("/v1/identity/me");
+
+        setUser({
+          id: response.data.data.user.id,
+          username: response.data.data.user.username,
+          email: response.data.data.user.email,
+          role: response.data.data.user.role,
+          blockhainUserId: response.data.data.user.blockhainUserId,
+          profile: response.data.data.user.profile,
+          lastLogin: response.data.data.user.lastLogin,
+          phoneNumber: response.data.data.user.phoneNumber,
+          createdAt: response.data.data.user.createdAt,
+          documents: response.data.data.user.documents,
+          bankAccounts: response.data.data.user.bankAccounts,
+          businessProfile: response.data.data.user.businessProfile,
+          status: "active",
+          verified: response.data.data.user.verified,
+        });
+        setToken(savedToken);
+      } catch (error) {
+        localStorage.removeItem("authToken");
+        setToken(null);
+      }
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     checkAuth();
   }, []);
 
@@ -110,22 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       setToken(token);
-      setUser({
-        id: response.data.data.user.id,
-        username: response.data.data.user.username,
-        email: response.data.data.user.email,
-        role: response.data.data.user.role,
-        blockhainUserId: response.data.data.user.blockchainUserId,
-        lastLogin: response.data.data.user.lastLogin,
-        phoneNumber: response.data.data.user.profile.phoneNumber,
-        profile: response.data.data.user.profile,
-        createdAt: new Date().toISOString(),
-        documents: [],
-        bankAccounts: [],
-        businessProfile: null,
-        status: "active",
-        verified: false,
-      });
+      await checkAuth(); // Fetch user data immediately after login
 
       return {
         success: true,
@@ -134,7 +118,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       return {
         success: false,
-        error: error.response.data.message || "Login gagal",
+        error: error.response?.data?.message || "Login gagal",
       };
     }
   };

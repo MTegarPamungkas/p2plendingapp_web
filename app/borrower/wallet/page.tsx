@@ -26,19 +26,19 @@ import {
   ArrowDown,
   ArrowUp,
   CreditCard,
-  DollarSign,
   Landmark,
-  LockOpen,
   Wallet,
+  Lock,
 } from "lucide-react";
+import { BorrowerDashboardLayout } from "@/components/borrower-dashboard-layout";
 import { Badge } from "@/components/ui/badge";
 import { walletAPI } from "@/api/apiServices";
 import { useAPI, useMutation } from "@/hooks/useAPI";
 import { toast } from "@/hooks/use-toast";
-import { parse } from "path";
-import { BorrowerDashboardLayout } from "@/components/borrower-dashboard-layout";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LenderWalletPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -53,43 +53,27 @@ export default function LenderWalletPage() {
     refetch: refetchWallet,
   } = useAPI(getWallet, []);
 
-  // Mock payment methods (since API doesn't provide them)
-  const paymentMethods = [
-    {
-      id: "PM-001",
-      type: "bank",
-      name: "Chase Bank",
-      accountNumber: "****6789",
-      primary: true,
-    },
-    // {
-    //   id: "PM-002",
-    //   type: "card",
-    //   name: "Visa Credit",
-    //   accountNumber: "****4321",
-    //   primary: false,
-    // },
-  ];
-
   const { mutateAsync: depositMutation, loading: depositLoading } =
     useMutation();
 
   const handleDeposit = async () => {
-    if (!depositAmount || parseFloat(depositAmount) < 100) {
-      toast({
-        title: "Invalid Amount",
-        description: "Minimum deposit amount is 50000",
-        variant: "destructive",
-      });
-      return;
-    }
+    // if (!depositAmount || parseFloat(depositAmount) < 100000) {
+    //   toast({
+    //     title: "Invalid Amount",
+    //     description: "Minimum deposit amount is Rp100,000",
+    //     variant: "destructive",
+    //   });
+    //   return;
+    // }
 
     setIsDepositing(true);
     try {
       await depositMutation(() => walletAPI.deposit(parseInt(depositAmount)));
       toast({
         title: "Deposit Successful",
-        description: `${depositAmount} has been deposited to your wallet`,
+        description: `${formatCurrency(
+          parseFloat(depositAmount)
+        )} has been deposited to your wallet`,
       });
       setDepositAmount("");
       refetchWallet();
@@ -105,14 +89,14 @@ export default function LenderWalletPage() {
   };
 
   const handleWithdraw = async () => {
-    if (!withdrawAmount || parseFloat(withdrawAmount) < 100) {
-      toast({
-        title: "Invalid Amount",
-        description: "Minimum withdrawal amount is 50000",
-        variant: "destructive",
-      });
-      return;
-    }
+    // if (!withdrawAmount || parseFloat(withdrawAmount) < 100000) {
+    //   toast({
+    //     title: "Invalid Amount",
+    //     description: "Minimum withdrawal amount is Rp100,000",
+    //     variant: "destructive",
+    //   });
+    //   return;
+    // }
 
     if (
       walletData?.data &&
@@ -131,7 +115,9 @@ export default function LenderWalletPage() {
       await walletAPI.withdraw(parseFloat(withdrawAmount));
       toast({
         title: "Withdrawal Successful",
-        description: `${withdrawAmount} withdrawal has been initiated`,
+        description: `${formatCurrency(
+          parseFloat(withdrawAmount)
+        )} withdrawal has been initiated`,
       });
       setWithdrawAmount("");
       refetchWallet();
@@ -166,22 +152,30 @@ export default function LenderWalletPage() {
         return <ArrowDown className="h-5 w-5 text-green-500" />;
       case "WITHDRAWAL":
         return <ArrowUp className="h-5 w-5 text-red-500" />;
+      case "ESCROW_LOCK":
+        return <Lock className="h-5 w-5 text-blue-500" />;
       case "ESCROW_RELEASE":
-        return <LockOpen className="h-5 w-5 text-blue-500" />;
+        return <Wallet className="h-5 w-5 text-green-500" />;
+      case "LOAN_PAYMENT":
+        return <CreditCard className="h-5 w-5 text-purple-500" />;
       default:
-        return <DollarSign className="h-5 w-5 text-red-500" />;
+        return <Wallet className="h-5 w-5 text-yellow-500" />;
     }
   };
 
   const getTransactionColor = (type: string): string => {
     switch (type) {
       case "DEPOSIT":
-      case "ESCROW_RELEASE":
+      case "PAYMENT_DISTRIBUTION":
         return "bg-green-500/10";
       case "WITHDRAWAL":
         return "bg-red-500/10";
-      case "LOAN_PAYMENT":
+      case "ESCROW_LOCK":
         return "bg-blue-500/10";
+      case "ESCROW_RELEASE":
+        return "bg-green-500/10";
+      case "LOAN_PAYMENT":
+        return "bg-purple-500/10";
       default:
         return "bg-yellow-500/10";
     }
@@ -190,9 +184,11 @@ export default function LenderWalletPage() {
   const getAmountColor = (type: string): string => {
     switch (type) {
       case "DEPOSIT":
+      case "PAYMENT_DISTRIBUTION":
       case "ESCROW_RELEASE":
         return "text-green-500";
       case "WITHDRAWAL":
+      case "ESCROW_LOCK":
       case "LOAN_PAYMENT":
         return "text-red-500";
       default:
@@ -201,15 +197,33 @@ export default function LenderWalletPage() {
   };
 
   const getAmountPrefix = (type: string): string => {
-    const positiveTypes = ["DEPOSIT", "ESCROW_RELEASE"];
-    const negativeTypes = ["WITHDRAWAL", "LOAN_PAYMENT"];
+    const positiveTypes = ["DEPOSIT", "PAYMENT_DISTRIBUTION", "ESCROW_RELEASE"];
+    const negativeTypes = ["WITHDRAWAL", "ESCROW_LOCK", "LOAN_PAYMENT"];
+    return positiveTypes.includes(type)
+      ? "+"
+      : negativeTypes.includes(type)
+      ? "-"
+      : "";
+  };
 
-    if (positiveTypes.includes(type)) {
-      return "+";
-    } else if (negativeTypes.includes(type)) {
-      return "-";
+  const getTransactionDetails = (transaction: any): string => {
+    if (transaction.sourceDetails) {
+      const { type, loanId, paymentId, installmentNumber } =
+        transaction.sourceDetails;
+      switch (type) {
+        case "LOAN_FUNDING":
+          return `Loan ID: ${loanId}`;
+        case "LOAN_DISBURSEMENT":
+          return `Loan ID: ${loanId}`;
+        case "INSTALLMENT_PAYMENT":
+          return `Loan ID: ${loanId}, Installment #${installmentNumber}`;
+        case "LOAN_REPAYMENT":
+          return `Loan ID: ${loanId}, Payment ID: ${paymentId}`;
+        default:
+          return "";
+      }
     }
-    return "-"; // Default untuk tipe transaksi tidak dikenal
+    return "";
   };
 
   if (walletLoading) {
@@ -268,7 +282,7 @@ export default function LenderWalletPage() {
                 </p>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-2">
                 <div className="rounded-lg border border-border/50 p-4">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-muted-foreground">
@@ -285,21 +299,10 @@ export default function LenderWalletPage() {
                     <p className="text-sm font-medium text-muted-foreground">
                       Wallet ID
                     </p>
-                    <DollarSign className="h-4 w-4 text-yellow-500" />
+                    <Wallet className="h-4 w-4 text-yellow-500" />
                   </div>
                   <p className="mt-2 text-sm font-mono truncate">
                     {walletData?.data.walletId}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border/50 p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Blockchain
-                    </p>
-                    <Landmark className="h-4 w-4 text-green-500" />
-                  </div>
-                  <p className="mt-2 text-sm font-mono truncate">
-                    {walletData?.data.blockchainAddress}
                   </p>
                 </div>
               </div>
@@ -328,21 +331,16 @@ export default function LenderWalletPage() {
               <CardDescription>Your linked payment methods</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {paymentMethods.map((method) => (
+              {user?.bankAccounts.map((method) => (
                 <div
                   key={method.id}
                   className="flex items-center justify-between rounded-lg border border-border/50 p-4"
                 >
                   <div className="flex items-center gap-3">
-                    {method.type === "bank" ? (
-                      <Landmark className="h-5 w-5 text-primary" />
-                    ) : (
-                      <CreditCard className="h-5 w-5 text-primary" />
-                    )}
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{method.name}</p>
-                        {method.primary && (
+                        <p className="font-medium">{method.bankName}</p>
+                        {method.isPrimary && (
                           <Badge variant="outline">Primary</Badge>
                         )}
                       </div>
@@ -351,14 +349,8 @@ export default function LenderWalletPage() {
                       </p>
                     </div>
                   </div>
-                  {/* <Button variant="ghost" size="sm">
-                    Edit
-                  </Button> */}
                 </div>
               ))}
-              {/* <Button variant="outline" className="w-full">
-                Add Payment Method
-              </Button> */}
             </CardContent>
           </Card>
         </div>
@@ -402,14 +394,16 @@ export default function LenderWalletPage() {
                               {getTransactionIcon(transaction.type)}
                             </div>
                             <div>
-                              <p className="font-medium capitalize">
-                                {formatTransactionType(transaction.type)}
+                              <p className="font-medium">
+                                {transaction.description ||
+                                  formatTransactionType(transaction.type)}
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {new Date(
                                   transaction.timestamp
-                                ).toLocaleDateString()}{" "}
-                                • Platform
+                                ).toLocaleDateString()}
+                                {getTransactionDetails(transaction) &&
+                                  ` • ${getTransactionDetails(transaction)}`}
                               </p>
                             </div>
                           </div>
@@ -420,7 +414,7 @@ export default function LenderWalletPage() {
                               )}`}
                             >
                               {getAmountPrefix(transaction.type)}
-                              {transaction.amount.toLocaleString()}
+                              {formatCurrency(transaction.amount)}
                             </p>
                             <Badge
                               variant="outline"
@@ -457,45 +451,41 @@ export default function LenderWalletPage() {
                 <div className="space-y-2">
                   <Label htmlFor="amount">Amount</Label>
                   <div className="relative">
-                    {/* <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /> */}
+                    <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="amount"
-                      placeholder="0.00"
-                      // className="pl-10"
+                      placeholder="0"
+                      className="pl-10"
                       value={depositAmount}
                       onChange={(e) => setDepositAmount(e.target.value)}
                       type="number"
-                      min="100"
+                      min="100000"
                     />
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Minimum deposit: 50000
-                  </p>
+                  {/* <p className="text-sm text-muted-foreground">
+                    Minimum deposit: Rp100,000
+                  </p> */}
                 </div>
 
                 <div className="space-y-2">
                   <Label>Payment Method</Label>
                   <RadioGroup defaultValue="pm-001" className="space-y-3">
-                    {paymentMethods.map((method) => (
+                    {user?.bankAccounts.map((method) => (
                       <div
                         key={method.id}
                         className="flex items-center space-x-2 rounded-md border border-border/50 p-3"
                       >
                         <RadioGroupItem
                           value={method.id.toLowerCase()}
+                          checked={method.isPrimary}
                           id={method.id.toLowerCase()}
                         />
                         <Label
                           htmlFor={method.id.toLowerCase()}
                           className="flex flex-1 items-center gap-3 font-normal"
                         >
-                          {method.type === "bank" ? (
-                            <Landmark className="h-5 w-5 text-primary" />
-                          ) : (
-                            <CreditCard className="h-5 w-5 text-primary" />
-                          )}
                           <div>
-                            <p>{method.name}</p>
+                            <p>{method.bankName}</p>
                             <p className="text-sm text-muted-foreground">
                               {method.accountNumber}
                             </p>
@@ -503,18 +493,6 @@ export default function LenderWalletPage() {
                         </Label>
                       </div>
                     ))}
-                    {/* <div className="flex items-center space-x-2 rounded-md border border-dashed border-border/50 p-3">
-                      <RadioGroupItem value="new" id="new" />
-                      <Label
-                        htmlFor="new"
-                        className="flex flex-1 items-center gap-3 font-normal"
-                      >
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full border border-primary">
-                          <span className="text-xs">+</span>
-                        </div>
-                        <p>Add New Payment Method</p>
-                      </Label>
-                    </div> */}
                   </RadioGroup>
                 </div>
 
@@ -528,18 +506,22 @@ export default function LenderWalletPage() {
                     <div className="mt-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">Amount</p>
-                        <p className="font-medium">{depositAmount || "0.00"}</p>
+                        <p className="font-medium">
+                          {formatCurrency(parseFloat(depositAmount) || 0)}
+                        </p>
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">
                           Processing Fee
                         </p>
-                        <p className="font-medium">0.00</p>
+                        <p className="font-medium">{formatCurrency(0)}</p>
                       </div>
                       <Separator className="my-2" />
                       <div className="flex items-center justify-between">
                         <p className="font-medium">Total</p>
-                        <p className="font-medium">{depositAmount || "0.00"}</p>
+                        <p className="font-medium">
+                          {formatCurrency(parseFloat(depositAmount) || 0)}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -547,11 +529,11 @@ export default function LenderWalletPage() {
                   <Button
                     className="w-full"
                     onClick={handleDeposit}
-                    disabled={
-                      isDepositing ||
-                      !depositAmount ||
-                      parseFloat(depositAmount) < 100
-                    }
+                    // disabled={
+                    //   isDepositing ||
+                    //   !depositAmount ||
+                    //   parseFloat(depositAmount) < 100000
+                    // }
                   >
                     {isDepositing ? "Processing..." : "Deposit Funds"}
                   </Button>
@@ -577,25 +559,25 @@ export default function LenderWalletPage() {
                   </div>
                 </div>
 
-                <div className="space-y-0">
+                <div className="space-y-2">
                   <Label htmlFor="withdraw-amount">Amount</Label>
                   <div className="relative">
-                    {/* <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /> */}
+                    <Wallet className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="withdraw-amount"
-                      placeholder="0.00"
-                      // className="pl-10"
+                      placeholder="0"
+                      className="pl-10"
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                       type="number"
-                      min="100"
+                      min="0"
                       max={walletData?.data.balance}
                     />
                   </div>
                   <div className="flex justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Minimum withdrawal: 50000
-                    </p>
+                    {/* <p className="text-sm text-muted-foreground">
+                      Minimum withdrawal: Rp100,000
+                    </p> */}
                     <Button
                       variant="link"
                       className="h-auto p-0 text-sm"
@@ -610,22 +592,28 @@ export default function LenderWalletPage() {
 
                 <div className="space-y-2">
                   <Label>Destination Account</Label>
-                  <Select defaultValue="pm-001">
+                  <Select
+                    defaultValue={
+                      user?.bankAccounts
+                        .find((method) => method.isPrimary)
+                        ?.id.toLowerCase() ||
+                      user?.bankAccounts[0]?.id.toLowerCase() ||
+                      ""
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select bank account" />
                     </SelectTrigger>
                     <SelectContent>
-                      {paymentMethods
-                        .filter((method) => method.type === "bank")
-                        .map((method) => (
-                          <SelectItem
-                            key={method.id}
-                            value={method.id.toLowerCase()}
-                          >
-                            {method.name} ({method.accountNumber})
-                          </SelectItem>
-                        ))}
-                      <SelectItem value="new">Add New Bank Account</SelectItem>
+                      {user?.bankAccounts.map((method) => (
+                        <SelectItem
+                          key={method.id}
+                          value={method.id.toLowerCase()}
+                        >
+                          {method.bankName} ({method.accountNumber})
+                        </SelectItem>
+                      ))}
+                      {/* <SelectItem value="new">Add New Bank Account</SelectItem> */}
                     </SelectContent>
                   </Select>
                 </div>
@@ -641,20 +629,20 @@ export default function LenderWalletPage() {
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">Amount</p>
                         <p className="font-medium">
-                          {withdrawAmount || "0.00"}
+                          {formatCurrency(parseFloat(withdrawAmount) || 0)}
                         </p>
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">
                           Processing Fee
                         </p>
-                        <p className="font-medium">0.00</p>
+                        <p className="font-medium">{formatCurrency(0)}</p>
                       </div>
                       <Separator className="my-2" />
                       <div className="flex items-center justify-between">
                         <p className="font-medium">Total</p>
                         <p className="font-medium">
-                          {withdrawAmount || "0.00"}
+                          {formatCurrency(parseFloat(withdrawAmount) || 0)}
                         </p>
                       </div>
                       <div className="flex items-center justify-between">
@@ -672,7 +660,7 @@ export default function LenderWalletPage() {
                     disabled={
                       isWithdrawing ||
                       !withdrawAmount ||
-                      parseFloat(withdrawAmount) < 100 ||
+                      // parseFloat(withdrawAmount) < 100000 ||
                       parseFloat(withdrawAmount) > walletData?.data.balance
                     }
                   >

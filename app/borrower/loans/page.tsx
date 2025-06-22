@@ -26,6 +26,7 @@ import { BorrowerDashboardLayout } from "@/components/borrower-dashboard-layout"
 import { cn } from "@/lib/utils";
 import { loanAPI } from "@/api/apiServices";
 import { useAPI } from "@/hooks/useAPI";
+import { formatCurrency } from "@/utils/utils";
 
 // Define loan status types
 type LoanStatus =
@@ -78,15 +79,6 @@ export default function BorrowerLoansPage() {
     }
     return loan.status === selectedStatus;
   });
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: `IDR`,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   return (
     <BorrowerDashboardLayout>

@@ -111,19 +111,6 @@ export default function LenderMarketplacePage() {
     return companies[index] || "Business Enterprise";
   };
 
-  const generateLoanTitle = (purpose: string) => {
-    const titleMap: { [key: string]: string } = {
-      Expansion: "Business Expansion",
-      Equipment: "Equipment Financing",
-      Inventory: "Inventory Financing",
-      "Working Capital": "Working Capital Loan",
-      Technology: "Technology Upgrade",
-      Marketing: "Marketing Campaign",
-      default: "Business Loan",
-    };
-    return titleMap[purpose] || titleMap["default"];
-  };
-
   const getLoans = useCallback(() => loanAPI.getAvailableLoansForFunding(), []);
   const {
     data: loansData,
@@ -177,12 +164,7 @@ export default function LenderMarketplacePage() {
           <Tabs defaultValue="all" className="w-full">
             <div className="flex items-center justify-between">
               <TabsList>
-                <TabsTrigger value="all">
-                  All Loans ({loans.length})
-                </TabsTrigger>
-                <TabsTrigger value="new">New Listings</TabsTrigger>
-                <TabsTrigger value="popular">Popular</TabsTrigger>
-                <TabsTrigger value="ending">Ending Soon</TabsTrigger>
+                <TabsTrigger value="all">Loans ({loans.length})</TabsTrigger>
               </TabsList>
               <Select defaultValue="newest">
                 <SelectTrigger className="w-[180px]">
@@ -217,7 +199,7 @@ export default function LenderMarketplacePage() {
                         loan.fundingTarget
                       );
                       const companyName = generateCompanyName(loan.purpose);
-                      const loanTitle = generateLoanTitle(loan.purpose);
+                      const loanTitle = loan.purpose + " Loan";
 
                       return (
                         <Card key={loan.loanId}>
@@ -312,13 +294,13 @@ export default function LenderMarketplacePage() {
                     })}
                   </div>
 
-                  {loans.length > 0 && (
+                  {/* {loans.length > 0 && (
                     <div className="mt-6 flex items-center justify-center">
                       <Button variant="outline">
                         Load More <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </div>
-                  )}
+                  )} */}
                 </>
               )}
             </TabsContent>

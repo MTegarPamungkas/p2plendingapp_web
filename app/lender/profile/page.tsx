@@ -24,6 +24,8 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function ProfilePage() {
   const { user } = useAuth();
 
+  console.log(user);
+
   if (!user) {
     return (
       <LenderDashboardLayout>
@@ -81,25 +83,22 @@ export default function ProfilePage() {
             <CardContent className="flex flex-col items-center text-center">
               <div className="relative mb-6">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage
-                    src={
-                      user.profile.profilePicture ||
-                      "/placeholder.svg?height=96&width=96"
-                    }
+                  {/* <AvatarImage
+                    src={user.profile.profilePicture}
                     alt="Profile"
-                  />
-                  <AvatarFallback className="text-lg">
-                    {getInitials(user.profile.fullName)}
+                  /> */}
+                  <AvatarFallback className=" bg-white text-black text-4xl font-bold font-serif">
+                    {user.profile.fullName?.charAt(0)?.toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
-                <Button
+                {/* <Button
                   size="icon"
                   variant="outline"
                   className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-sm"
                 >
                   <Camera className="h-4 w-4" />
                   <span className="sr-only">Change profile picture</span>
-                </Button>
+                </Button> */}
               </div>
 
               <h3 className="text-xl font-bold mb-1">
@@ -108,7 +107,7 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground mb-3">{user.email}</p>
 
               <div className="flex gap-2 mb-4">
-                <Badge variant="secondary">{user.userType}</Badge>
+                <Badge variant="secondary">{user.role}</Badge>
               </div>
 
               <Separator className="my-4" />
@@ -143,12 +142,10 @@ export default function ProfilePage() {
                   <Badge
                     variant="outline"
                     className={`text-xs ${
-                      user.verified != true
-                        ? "text-green-600 border-green-200"
-                        : "text-orange-600 border-orange-200"
+                      user.verified ? "text-green-500" : "text-yellow-500"
                     }`}
                   >
-                    {user.verified != true ? "Verified" : "Pending"}
+                    {user.verified ? "Verified" : "Pending"}
                   </Badge>
                 </div>
               </div>

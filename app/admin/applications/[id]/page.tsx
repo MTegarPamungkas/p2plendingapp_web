@@ -72,6 +72,9 @@ export default function BorrowerLoanDetailsPage({
   const { mutateAsync: approveLoanMutation, loading: approveLoanLoading } =
     useMutation();
 
+  const { mutateAsync: rejectLoanMutation, loading: rejectLoanLoading } =
+    useMutation();
+
   useEffect(() => {
     async function getParams() {
       const resolvedParams = await params;
@@ -160,7 +163,9 @@ export default function BorrowerLoanDetailsPage({
   const handleRejectLoan = async () => {
     if (!loanId) return;
     try {
-      await approveLoanMutation(() => loanAPI.approveLoan(loanId));
+      await rejectLoanMutation(() =>
+        loanAPI.rejectLoan(loanId, "Rejected by admin")
+      );
       setShowRejectDialog(false);
       refetchLoan();
       refetchRepaymentSchedule();
@@ -506,12 +511,6 @@ export default function BorrowerLoanDetailsPage({
                             Retry
                           </Button>
                         </div>
-                      ) : !repaymentScheduleDatas?.installments?.length ||
-                        loan.status !== "ACTIVE" ? (
-                        <p className="text-muted-foreground">
-                          No repayment schedule available for {loan.status}{" "}
-                          loan.
-                        </p>
                       ) : (
                         repaymentScheduleDatas?.installments?.map(
                           (installment: any) => (
@@ -585,11 +584,6 @@ export default function BorrowerLoanDetailsPage({
                       )}
                     </div>
                   </CardContent>
-                  <CardFooter>
-                    <Button variant="outline" className="w-full" asChild>
-                      <Link href="/admin/schedule">View Complete Schedule</Link>
-                    </Button>
-                  </CardFooter>
                 </Card>
               </TabsContent>
               <TabsContent value="lenders" className="mt-4">

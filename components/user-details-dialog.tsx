@@ -9,18 +9,20 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, UserCheck, Ban, Lock, Shield } from "lucide-react";
+import { Eye, UserCheck, Ban, Lock, Shield, XCircle } from "lucide-react";
 import { User } from "@/types";
 import { format } from "date-fns";
 
 interface UserDetailsDialogProps {
   user: User;
   onApproveUser: (user: User) => void;
+  onRejectUser: (user: User) => void;
 }
 
 export function UserDetailsDialog({
   user,
   onApproveUser,
+  onRejectUser,
 }: UserDetailsDialogProps) {
   const getStatusBadgeClass = (status: string) => {
     switch (status.toLowerCase()) {
@@ -28,6 +30,8 @@ export function UserDetailsDialog({
         return "bg-green-500/10 text-green-500";
       case "pending":
         return "bg-yellow-500/10 text-yellow-500";
+      case "rejected":
+        return "bg-red-500/10 text-red-500";
       case "suspended":
         return "bg-red-500/10 text-red-500";
       default:
@@ -102,6 +106,15 @@ export function UserDetailsDialog({
                     : format(new Date(user.createdAt), "PPP p")}
                 </p>
               </div>
+              {/* {user.status.toLowerCase() === "rejected" &&
+                user.rejectionReason && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Rejection Reason
+                    </p>
+                    <p>{user.rejectionReason}</p>
+                  </div>
+                )} */}
             </div>
           </div>
 
@@ -215,15 +228,24 @@ export function UserDetailsDialog({
         {/* Action Buttons */}
         <div className="flex justify-end gap-2 pt-4 border-t">
           {user.status.toLowerCase() === "pending" && (
-            <Button
-              onClick={() => onApproveUser(user)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <UserCheck className="mr-2 h-4 w-4" />
-              Approve User
-            </Button>
+            <>
+              <Button
+                onClick={() => onApproveUser(user)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <UserCheck className="mr-2 h-4 w-4" />
+                Approve User
+              </Button>
+              <Button
+                onClick={() => onRejectUser(user)}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Reject User
+              </Button>
+            </>
           )}
-          {user.status.toLowerCase() === "active" && (
+          {/* {user.status.toLowerCase() === "active" && (
             <Button variant="destructive">
               <Ban className="mr-2 h-4 w-4" />
               Suspend User
@@ -234,8 +256,8 @@ export function UserDetailsDialog({
               <UserCheck className="mr-2 h-4 w-4" />
               Reactivate User
             </Button>
-          )}
-          <Button variant="outline">
+          )} */}
+          {/* <Button variant="outline">
             {user.verified ? (
               <>
                 <Lock className="mr-2 h-4 w-4" />
@@ -247,7 +269,7 @@ export function UserDetailsDialog({
                 Verify Identity
               </>
             )}
-          </Button>
+          </Button> */}
         </div>
       </DialogContent>
     </Dialog>

@@ -64,6 +64,7 @@ export default function AdminApplicationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
 
   const { user } = useAuth();
@@ -79,8 +80,9 @@ export default function AdminApplicationsPage() {
 
   const { mutateAsync: approveLoanMutation, loading: approveLoanLoading } =
     useMutation();
-  // State tambahan untuk dialog reject
-  const [showRejectDialog, setShowRejectDialog] = useState(false);
+
+  const { mutateAsync: rejectLoanMutation, loading: rejectLoanLoading } =
+    useMutation();
 
   // Fungsi untuk menangani penolakan pinjaman
   const handleRejectLoan = (loan: Loan) => {
@@ -93,7 +95,9 @@ export default function AdminApplicationsPage() {
     if (!selectedLoan) return;
 
     try {
-      await approveLoanMutation(() => loanAPI.approveLoan(selectedLoan.loanId));
+      await rejectLoanMutation(() =>
+        loanAPI.rejectLoan(selectedLoan.loanId, "Rejected by admin")
+      );
       setShowRejectDialog(false);
       refetchLoans();
     } catch (error) {
