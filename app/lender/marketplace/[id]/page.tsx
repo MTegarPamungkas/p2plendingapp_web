@@ -234,10 +234,10 @@ export default function LenderMarketplaceDetailsPage({
     );
   }
 
-  if (loan?.status === "ACTIVE") {
-    router.replace("/lender/marketplace");
-    return null;
-  }
+  // if (loan?.status === "ACTIVE") {
+  //   router.replace("/lender/marketplace");
+  //   return null;
+  // }
 
   const remainingAmount = loan.fundingTarget - loan.currentFunding;
   const progress = Math.round((loan.currentFunding / loan.fundingTarget) * 100);

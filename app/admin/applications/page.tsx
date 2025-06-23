@@ -105,7 +105,14 @@ export default function AdminApplicationsPage() {
     }
   };
 
-  const filteredApplications = loansData?.data.filter((app) => {
+  // Fungsi untuk mengurutkan data berdasarkan tanggal terbaru
+  const sortedLoans = loansData?.data?.sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime();
+    const dateB = new Date(b.createdAt).getTime();
+    return dateB - dateA; // Urutkan dari terbaru ke terlama
+  });
+
+  const filteredApplications = sortedLoans?.filter((app) => {
     const matchesSearch =
       app.purpose.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.loanId.toLowerCase().includes(searchTerm.toLowerCase());

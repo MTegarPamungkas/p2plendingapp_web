@@ -94,7 +94,12 @@ export default function BorrowerLoanDetailsPage({
 
   // Only call repayment schedule API if loan is ACTIVE
   const getRepaymentSchedule = useCallback(() => {
-    if (!loanId || !loanData?.data || loanData.data.status !== "ACTIVE") {
+    if (
+      !loanId ||
+      !loanData?.data ||
+      (loanData.data.status !== "ACTIVE" &&
+        loanData.data.status !== "COMPLETED")
+    ) {
       return Promise.resolve(null);
     }
     return loanAPI.getRepaymentScheduleById(loanId);
@@ -142,6 +147,8 @@ export default function BorrowerLoanDetailsPage({
 
   const loanDatas = loanData?.data;
   const repaymentScheduleDatas = repaymentScheduleData?.data;
+
+  console.log("Repayment Schedule Data:", repaymentScheduleData);
   const walletDatas = walletData?.data;
 
   const handleMakePayment = async (amount: any) => {
@@ -472,17 +479,7 @@ export default function BorrowerLoanDetailsPage({
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {loan.status !== "ACTIVE" ? (
-                        <div className="flex flex-col items-center justify-center py-8 gap-2">
-                          <p className="text-muted-foreground text-center">
-                            Repayment schedule is only available for active
-                            loans.
-                            <br />
-                            Current loan status:{" "}
-                            <span className="font-medium">{loan.status}</span>
-                          </p>
-                        </div>
-                      ) : repaymentScheduleLoading ? (
+                      {repaymentScheduleLoading ? (
                         <div className="flex items-center justify-center py-8">
                           <p className="text-muted-foreground">
                             Loading repayment schedule...

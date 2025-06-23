@@ -38,39 +38,40 @@ export default defineConfig({
   /* Configure projects for major browsers */
   projects: [
     {
-      name: 'chromium',
+      name: '01-login',
+      testMatch: '**/login-e2e.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
-
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
-
-    /* Test against mobile viewports. */
-    // {
-    //   name: 'Mobile Chrome',
-    //   use: { ...devices['Pixel 5'] },
-    // },
-    // {
-    //   name: 'Mobile Safari',
-    //   use: { ...devices['iPhone 12'] },
-    // },
-
-    /* Test against branded browsers. */
-    // {
-    //   name: 'Microsoft Edge',
-    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
-    // },
-    // {
-    //   name: 'Google Chrome',
-    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
-    // },
+    {
+      name: '02-register', 
+      testMatch: '**/register-e2e.spec.ts',
+      dependencies: ['01-login'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: '03-loan-application',
+      testMatch: '**/loan-application-e2e.spec.ts', 
+      dependencies: ['02-register'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: '04-admin-approval',
+      testMatch: '**/admin-loan-approval-e2e.spec.ts',
+      dependencies: ['03-loan-application'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: '05-lender-funding',
+      testMatch: '**/lender-loan-funding-e2e.spec.ts',
+      dependencies: ['04-admin-approval'], 
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: '06-borrower-payment',
+      testMatch: '**/borrower-monthly-payment-e2e.spec.ts',
+      dependencies: ['05-lender-funding'],
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
 
   /* Run your local dev server before starting the tests */
