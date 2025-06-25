@@ -3,14 +3,15 @@ import { APP_CONFIG, CREDENTIALS_CONFIG } from './config/credential';
 
 // Helper function untuk login
 async function performLogin(page: Page, role: string) {
-    const roleKey = role.toUpperCase() as 'BORROWER' | 'LENDER' | 'ADMIN';
-    const credentials = CREDENTIALS_CONFIG.LOGIN[roleKey];
-    await page.goto(APP_CONFIG.ROUTES.LOGIN);
-    await page.fill('input#email', credentials.email);
-    await page.fill('input#password', credentials.password);
-    await page.click('button[type="submit"]');
-    await page.waitForURL(APP_CONFIG.ROUTES[roleKey].DASHBOARD, { timeout: APP_CONFIG.TIMEOUTS.PAGE_LOAD });
-  }
+  const roleKey = role.toUpperCase() as 'BORROWER' | 'LENDER' | 'ADMIN';
+  const credentials = CREDENTIALS_CONFIG.LOGIN[roleKey];
+  await page.goto(APP_CONFIG.ROUTES.LOGIN);
+  await page.fill('input#email', credentials.email);
+  await page.fill('input#password', credentials.password);
+  await page.click('button[type="submit"]');
+  await page.waitForURL(APP_CONFIG.ROUTES[roleKey].DASHBOARD, { timeout: APP_CONFIG.TIMEOUTS.PAGE_LOAD });
+}
+
 // Helper function untuk setup error logging
 async function setupErrorLogging(page: Page) {
   page.on('console', (msg) => {
@@ -23,7 +24,7 @@ async function setupErrorLogging(page: Page) {
   });
 }
 
-test.describe('E2E Admin Loan Approval', () => {
+test.describe('E2E Admin Loan Approval and Rejection', () => {
   test.beforeEach(async ({ page }) => {
     await setupErrorLogging(page);
     await performLogin(page, APP_CONFIG.ROLES.ADMIN);
@@ -66,5 +67,45 @@ test.describe('E2E Admin Loan Approval', () => {
     await page.goto(APP_CONFIG.ROUTES.ADMIN.APPLICATIONS);
     await page.fill('input[placeholder="Search applications..."]', 'Expansion');
     await expect(page.locator('tr').filter({ hasText: 'expansion' }).filter({ hasText: 'Rp 50.000.000' }).getByText('APPROVED').first()).toBeVisible();
+  });
+
+  test('should reject a pending loan application from Borrower2', async ({ page }) => {
+    // Step 1: Navigate to Applications Management page
+    await page.goto(APP_CONFIG.ROUTES.ADMIN.APPLICATIONS);
+    await expect(page.getByText(APP_CONFIG.UI_TEXT.ADMIN.APPLICATIONS_TITLE)).toBeVisible();
+
+    // Step 2: Search for the loan application from Borrower2
+    await page.fill('input[placeholder="Search applications..."]', 'expansion');
+    await page.waitForTimeout(APP_CONFIG.TIMEOUTS.FILTER);
+
+    // Step 3: Verify the loan appears in the table
+    const loanRow = page.locator('tr').filter({ hasText: 'expansion' }).filter({ hasText: 'Rp 100.000.000' }).filter({ hasText: 'PENDING_APPROVAL' });
+    await expect(loanRow).toBeVisible();
+    await expect(loanRow.getByText('PENDING_APPROVAL')).toBeVisible();
+    await expect(loanRow.getByText('Rp 100.000.000')).toBeVisible();
+
+    // Step 4: Open the actions dropdown and view details
+    await loanRow.getByRole('button', { name: 'Open menu' }).click();
+    await page.getByRole('menuitem', { name: 'View Details' }).click();
+
+    // Step 5: Verify Loan Details page
+    await page.waitForURL(`${APP_CONFIG.ROUTES.ADMIN.APPLICATIONS}/*`, { timeout: APP_CONFIG.TIMEOUTS.PAGE_LOAD });
+    await expect(page.getByText('expansion Loan')).toBeVisible();
+    await expect(page.getByText('PENDING_APPROVAL')).toBeVisible();
+    await expect(page.getByText('Rp 100.000.000', { exact: true })).toBeVisible();
+    await expect(page.getByText('10% p.a.')).toBeVisible();
+    await expect(page.getByText('3 months')).toBeVisible();
+
+    // Step 6: Reject the loan
+    await page.getByRole('button', { name: 'Reject Loan' }).click();
+    await expect(page.getByRole('heading', { name: 'Reject Loan' })).toBeVisible();
+    // await page.fill('textarea#rejection-reason', 'Jumlah pinjaman terlalu besar dan arus kas tidak memadai.');
+    await page.getByRole('button', { name: APP_CONFIG.UI_TEXT.ADMIN.REJECT_BUTTON }).click();
+
+    // Step 7: Verify rejection success
+    await expect(page.getByText('REJECTED loan.')).toBeVisible({ timeout: APP_CONFIG.TIMEOUTS.PAGE_LOAD });
+    await page.goto(APP_CONFIG.ROUTES.ADMIN.APPLICATIONS);
+    await page.fill('input[placeholder="Search applications..."]', 'expansion');
+    await expect(page.locator('tr').filter({ hasText: 'expansion' }).filter({ hasText: 'Rp 100.000.000' }).getByText('REJECTED').first()).toBeVisible();
   });
 });

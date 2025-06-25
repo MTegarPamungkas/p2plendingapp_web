@@ -76,6 +76,7 @@ export const APP_CONFIG = {
       APPLICATIONS_TITLE: 'Applications Management',
       APPROVE_TITLE: 'Approve Loan',
       APPROVE_BUTTON: 'Setujui Pinjaman',
+      REJECT_BUTTON: 'Tolak Pinjaman',
     },
     WALLET: {
       TITLE: 'Wallet',
@@ -158,8 +159,16 @@ export const CREDENTIALS_CONFIG = {
       email: 'borrower7@gmail.com',
       password: 'password123',
     },
+    BORROWER2: {
+      email: 'borrower1@gmail.com',
+      password: 'password123',
+    },
     LENDER: {
       email: 'lender7@gmail.com',
+      password: 'password123',
+    },
+    LENDER2: {
+      email: 'lender1@gmail.com',
       password: 'password123',
     },
     ADMIN: {

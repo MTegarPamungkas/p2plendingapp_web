@@ -55,9 +55,15 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: '03-loan-application2',
+      testMatch: '**/loan-application2-e2e.spec.ts', 
+      dependencies: ['03-loan-application'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: '04-admin-approval',
       testMatch: '**/admin-loan-approval-e2e.spec.ts',
-      dependencies: ['03-loan-application'],
+      dependencies: ['03-loan-application2'],
       use: { ...devices['Desktop Chrome'] },
     },
     {
