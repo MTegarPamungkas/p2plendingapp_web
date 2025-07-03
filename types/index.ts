@@ -102,6 +102,43 @@ export type BorrowerSummaryResponse = {
   };
 };
 
+export type AdminSummaryResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    data: {
+      systemMetrics: {
+        totalUsers: number;
+        verifiedUsers: number;
+        pendingVerification: number;
+        rejectedIdentities: number;
+        roleDistribution: Record<string, number>;
+        totalLoans: number;
+        activeLoans: number;
+        pendingLoans: number;
+        completedLoans: number;
+        rejectedLoans: number;
+        totalLoanAmount: number;
+        averageLoanAmount: number;
+        totalWalletBalance: number;
+        totalPlatformFees: number;
+        platformFeeRate: number;
+        minimumCreditScore: number;
+        maximumLoanAmount: number;
+      };
+      creditScoreDistribution: Record<string, number>;
+      recentActivity: {
+        recordId: string;
+        action: string;
+        performedBy: string;
+        timestamp: string;
+        data: Record<string, any>;
+      }[];
+      loansNeedingAttention: any[];
+    }
+  };
+};
+
 
 export interface UserProfile {
     phoneNumber: string;

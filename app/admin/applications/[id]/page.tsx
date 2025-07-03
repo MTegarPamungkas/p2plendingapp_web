@@ -49,12 +49,14 @@ import { AdminDashboardLayout } from "@/components/admin-dashboard-layout";
 import { loanAPI } from "@/api/apiServices";
 import { useAPI, useMutation } from "@/hooks/useAPI";
 import { formatCurrency } from "@/utils/utils";
+import { useRouter } from "next/navigation";
 
 export default function BorrowerLoanDetailsPage({
   params,
 }: {
   params: { id: string };
 }) {
+  const router = useRouter();
   const [loanId, setLoanId] = useState<string | null>(null);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -259,10 +261,16 @@ export default function BorrowerLoanDetailsPage({
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" asChild>
-              <Link href="/admin/applications">
+            <Button
+              variant="outline"
+              size="icon"
+              className=" cursor-pointer"
+              asChild
+              onClick={() => router.back()}
+            >
+              <div>
                 <ArrowLeft className="h-4 w-4" />
-              </Link>
+              </div>
             </Button>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">

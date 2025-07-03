@@ -4,7 +4,7 @@ import { ApiError } from '../types';
 // Create axios instance
 const apiClient = axios.create({
   // Fix: tambahkan http:// dan perbaiki URL
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://c9da-182-2-167-202.ngrok-free.app/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

@@ -17,7 +17,8 @@ import {
   PaginatedLoansResponse,
   InvestmentDetailsResponse,
   BorrowerSummaryResponse,
-  LenderPortfolioResponse
+  LenderPortfolioResponse,
+  AdminSummaryResponse
 } from "../types";
 import { verify } from "crypto";
 import { da } from "date-fns/locale";
@@ -522,6 +523,11 @@ export const loanAPI = {
     return response.data;
   },
 
+  getAdminSummary: async (): Promise<AdminSummaryResponse> => {
+    const response = await apiClient.get<AdminSummaryResponse>(`/v1/loan/summary`);
+    return response.data;
+  },
+
   getInvestmentDetails: async (investmentId: string): Promise<InvestmentDetailsResponse> => {
     const requestBody = {
       investmentId: investmentId
@@ -587,12 +593,12 @@ export const walletAPI = {
    * @param amount - Amount to deposit
    * @returns Promise with success message
    */
-  deposit: async (amount: number): Promise<{ message: string }> => {
+  deposit: async (amount: number): Promise<any> => {
     const requestBody = {
       amount: amount,
     };
 
-    const response = await apiClient.post<{ message: string }>(
+    const response = await apiClient.post(
       `/v1/wallet/deposit`,
       requestBody
     );

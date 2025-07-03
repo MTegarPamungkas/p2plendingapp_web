@@ -1,6 +1,6 @@
 "use client";
 
-import { JSX, useCallback, useState } from "react";
+import { JSX, useCallback, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,6 +37,16 @@ import { useAPI, useMutation } from "@/hooks/useAPI";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Declare Snap for TypeScript
+declare global {
+  interface Window {
+    snap: {
+      pay: (snapToken: string, options?: any) => void;
+      embed: (snapToken: string, options: any) => void;
+    };
+  }
+}
+
 export default function LenderWalletPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
@@ -44,6 +54,23 @@ export default function LenderWalletPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isDepositing, setIsDepositing] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [snapLoaded, setSnapLoaded] = useState(false);
+
+  // Load Snap.js script
+  useEffect(() => {
+    const snapScript = "https://app.sandbox.midtrans.com/snap/snap.js";
+    const clientKey = "SB-Mid-client-f2sGs7uxUpVLFXGT";
+
+    const script = document.createElement("script");
+    script.src = snapScript;
+    script.setAttribute("data-client-key", clientKey);
+    script.onload = () => setSnapLoaded(true);
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   const getWallet = useCallback(() => walletAPI.getWallet(), []);
   const {
@@ -53,14 +80,11 @@ export default function LenderWalletPage() {
     refetch: refetchWallet,
   } = useAPI(getWallet, []);
 
-  const { mutateAsync: depositMutation, loading: depositLoading } =
-    useMutation();
-
   const handleDeposit = async () => {
-    if (!depositAmount || parseFloat(depositAmount) < 100000) {
+    if (!snapLoaded) {
       toast({
-        title: "Invalid Amount",
-        description: "Minimum deposit amount is Rp100,000",
+        title: "Payment system not ready",
+        description: "Please wait a moment and try again",
         variant: "destructive",
       });
       return;
@@ -68,15 +92,45 @@ export default function LenderWalletPage() {
 
     setIsDepositing(true);
     try {
-      await depositMutation(() => walletAPI.deposit(parseInt(depositAmount)));
-      toast({
-        title: "Deposit Successful",
-        description: `${formatCurrency(
-          parseFloat(depositAmount)
-        )} has been deposited to your wallet`,
+      const response = await walletAPI.deposit(parseFloat(depositAmount));
+      const { token } = response.data;
+
+      window.snap.pay(token, {
+        onSuccess: function (result: any) {
+          console.log("Payment success:", result);
+          toast({
+            title: "Deposit Successful",
+            description: `${formatCurrency(
+              parseFloat(depositAmount)
+            )} has been deposited to your wallet`,
+          });
+          setDepositAmount("");
+          refetchWallet();
+        },
+        onPending: function (result: any) {
+          console.log("Payment pending:", result);
+          toast({
+            title: "Payment Pending",
+            description: "Your payment is being processed",
+          });
+        },
+        onError: function (result: any) {
+          console.log("Payment error:", result);
+          toast({
+            title: "Payment Failed",
+            description: "There was an error processing your payment",
+            variant: "destructive",
+          });
+        },
+        onClose: function () {
+          console.log("Payment popup closed");
+          toast({
+            title: "Payment Cancelled",
+            description: "Payment process was cancelled",
+            variant: "destructive",
+          });
+        },
       });
-      setDepositAmount("");
-      refetchWallet();
     } catch (error) {
       toast({
         title: "Deposit Failed",
@@ -88,16 +142,77 @@ export default function LenderWalletPage() {
     }
   };
 
-  const handleWithdraw = async () => {
-    // if (!withdrawAmount || parseFloat(withdrawAmount) < 100000) {
-    //   toast({
-    //     title: "Invalid Amount",
-    //     description: "Minimum withdrawal amount is Rp100,000",
-    //     variant: "destructive",
-    //   });
-    //   return;
-    // }
+  // Alternative: Embed Snap in a div (uncomment if you prefer embedded payment)
+  /*
+  const handleDepositEmbed = async () => {
+    if (!snapLoaded) {
+      toast({
+        title: "Payment system not ready",
+        description: "Please wait a moment and try again",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    setIsDepositing(true);
+    try {
+      const response = await walletAPI.deposit(parseFloat(depositAmount));
+      const { snapToken } = response.data;
+
+      // Clear previous embed content
+      const embedContainer = document.getElementById('snap-container');
+      if (embedContainer) {
+        embedContainer.innerHTML = '';
+      }
+
+      // Embed Snap in container
+      window.snap.embed(snapToken, {
+        embedId: 'snap-container',
+        onSuccess: function(result) {
+          console.log('Payment success:', result);
+          toast({
+            title: "Deposit Successful",
+            description: `${formatCurrency(
+              parseFloat(depositAmount)
+            )} has been deposited to your wallet`,
+          });
+          setDepositAmount("");
+          refetchWallet();
+          // Hide embed container
+          if (embedContainer) {
+            embedContainer.innerHTML = '';
+          }
+        },
+        onPending: function(result) {
+          console.log('Payment pending:', result);
+          toast({
+            title: "Payment Pending",
+            description: "Your payment is being processed",
+          });
+        },
+        onError: function(result) {
+          console.log('Payment error:', result);
+          toast({
+            title: "Payment Failed",
+            description: "There was an error processing your payment",
+            variant: "destructive",
+          });
+        }
+      });
+
+    } catch (error) {
+      toast({
+        title: "Deposit Failed",
+        description: "There was an error processing your deposit",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDepositing(false);
+    }
+  };
+  */
+
+  const handleWithdraw = async () => {
     if (
       walletData?.data &&
       parseFloat(withdrawAmount) > walletData?.data.balance
@@ -263,6 +378,9 @@ export default function LenderWalletPage() {
             Manage your funds and transactions
           </p>
         </div>
+
+        {/* Container for embedded Snap (uncomment if using embed method) */}
+        {/* <div id="snap-container" className="w-full"></div> */}
 
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="md:col-span-2">
@@ -462,38 +580,6 @@ export default function LenderWalletPage() {
                       min="100000"
                     />
                   </div>
-                  {/* <p className="text-sm text-muted-foreground">
-                    Minimum deposit: Rp100,000
-                  </p> */}
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Payment Method</Label>
-                  <RadioGroup defaultValue="pm-001" className="space-y-3">
-                    {user?.bankAccounts.map((method) => (
-                      <div
-                        key={method.id}
-                        className="flex items-center space-x-2 rounded-md border border-border/50 p-3"
-                      >
-                        <RadioGroupItem
-                          value={method.id.toLowerCase()}
-                          checked={method.isPrimary}
-                          id={method.id.toLowerCase()}
-                        />
-                        <Label
-                          htmlFor={method.id.toLowerCase()}
-                          className="flex flex-1 items-center gap-3 font-normal"
-                        >
-                          <div>
-                            <p>{method.bankName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {method.accountNumber}
-                            </p>
-                          </div>
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
                 </div>
 
                 <Separator />
@@ -529,13 +615,13 @@ export default function LenderWalletPage() {
                   <Button
                     className="w-full"
                     onClick={handleDeposit}
-                    disabled={
-                      isDepositing ||
-                      !depositAmount ||
-                      parseFloat(depositAmount) < 100000
-                    }
+                    disabled={isDepositing || !depositAmount || !snapLoaded}
                   >
-                    {isDepositing ? "Processing..." : "Deposit Funds"}
+                    {isDepositing
+                      ? "Processing..."
+                      : snapLoaded
+                      ? "Deposit Funds"
+                      : "Loading Payment System..."}
                   </Button>
                 </div>
               </CardContent>
@@ -575,9 +661,6 @@ export default function LenderWalletPage() {
                     />
                   </div>
                   <div className="flex justify-between">
-                    {/* <p className="text-sm text-muted-foreground">
-                      Minimum withdrawal: Rp100,000
-                    </p> */}
                     <Button
                       variant="link"
                       className="h-auto p-0 text-sm"
@@ -613,7 +696,6 @@ export default function LenderWalletPage() {
                           {method.bankName} ({method.accountNumber})
                         </SelectItem>
                       ))}
-                      {/* <SelectItem value="new">Add New Bank Account</SelectItem> */}
                     </SelectContent>
                   </Select>
                 </div>
@@ -660,7 +742,6 @@ export default function LenderWalletPage() {
                     disabled={
                       isWithdrawing ||
                       !withdrawAmount ||
-                      // parseFloat(withdrawAmount) < 100000 ||
                       parseFloat(withdrawAmount) > walletData?.data.balance
                     }
                   >

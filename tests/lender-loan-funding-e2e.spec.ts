@@ -29,21 +29,6 @@ test.describe('E2E Lender Loan Funding', () => {
   test.beforeEach(async ({ page }) => {
     await setupErrorLogging(page);
     await performLogin(page, APP_CONFIG.ROLES.LENDER);
-
-    // Navigate to Wallet and Deposit Funds
-    await page.goto(APP_CONFIG.ROUTES.LENDER.WALLET);
-    await expect(page.getByRole('heading', { name: APP_CONFIG.UI_TEXT.WALLET.TITLE })).toBeVisible();
-
-    // Switch to Deposit tab
-    await page.getByRole('tab', { name: 'Deposit' }).click();
-
-    // Enter deposit amount
-    const depositAmount = '1000000';
-    await page.fill('input#amount', depositAmount);
-    await expect(page.locator('input#amount')).toHaveValue(depositAmount);
-
-    // Submit deposit
-    await page.getByLabel('Deposit').getByRole('button', { name: APP_CONFIG.UI_TEXT.WALLET.DEPOSIT_BUTTON }).click();
   });
 
   test('should fund an approved loan', async ({ page }) => {

@@ -1,476 +1,673 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { ArrowRight, BarChart3, CheckCircle, Clock, DollarSign, FileText, PieChart, Shield, Users } from "lucide-react"
-import { AdminDashboardLayout } from "@/components/admin-dashboard-layout"
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { DollarSign, Users, PieChart, AlertCircle } from "lucide-react";
+import { AdminDashboardLayout } from "@/components/admin-dashboard-layout";
+import { useCallback } from "react";
+import { loanAPI } from "@/api/apiServices";
+import { usePublicAPI } from "@/hooks/useAPI";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+// Type definition for loansNeedingAttention
+type Loan = {
+  loanId: string;
+  borrowerId: string;
+  amount: number;
+  creditScore: number;
+};
+
+export type AdminSummaryResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    status: string;
+    message: string;
+    data: {
+      systemMetrics: {
+        totalUsers: number;
+        verifiedUsers: number;
+        pendingVerification: number;
+        rejectedIdentities: number;
+        roleDistribution: Record<string, number>;
+        totalLoans: number;
+        activeLoans: number;
+        pendingLoans: number;
+        completedLoans: number;
+        rejectedLoans: number;
+        totalLoanAmount: number;
+        averageLoanAmount: number;
+        totalWalletBalance: number;
+        totalPlatformFees: number;
+        platformFeeRate: number;
+        minimumCreditScore: number;
+        maximumLoanAmount: number;
+      };
+      creditScoreDistribution: Record<string, number>;
+      recentActivity: {
+        recordId: string;
+        action: string;
+        performedBy: string;
+        timestamp: string;
+        data: Record<string, any>;
+      }[];
+      loansNeedingAttention: Loan[];
+    };
+  };
+};
 
 export default function AdminDashboardPage() {
+  const getSummary = useCallback(() => loanAPI.getAdminSummary(), []);
+  const {
+    data: summaryData,
+    loading: summaryLoading,
+    error: summaryError,
+    refetch: refetchSummary,
+  } = usePublicAPI(getSummary, []);
+
+  // Format Rupiah
+  const formatCurrency = (amount: string | number | bigint) => {
+    const numericAmount =
+      typeof amount === "string" ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(numericAmount);
+  };
+
+  // Badge untuk skor kredit
+  const getCreditScoreBadge = (score: number) => {
+    if (score >= 800)
+      return <Badge className="bg-green-900 text-green-200">A+</Badge>;
+    if (score >= 740)
+      return <Badge className="bg-blue-900 text-blue-200">A</Badge>;
+    if (score >= 670)
+      return <Badge className="bg-yellow-900 text-yellow-200">B+</Badge>;
+    return <Badge className="bg-red-900 text-red-200">B</Badge>;
+  };
+
+  // Penanganan detail aktivitas
+  const getActivityDetail = (activity: {
+    action: string;
+    data: Record<string, any>;
+  }) => {
+    switch (activity.action) {
+      case "PAYMENT_DISTRIBUTION":
+        return (
+          <>
+            {activity.data.amount
+              ? formatCurrency(activity.data.amount)
+              : "Pembayaran"}{" "}
+            {activity.data.loanId && (
+              <span>
+                untuk Loan ID:{" "}
+                <Link
+                  href={`/admin/applications/${activity.data.loanId}`}
+                  className="text-blue-400 hover:underline"
+                >
+                  {activity.data.loanId}
+                </Link>
+              </span>
+            )}
+            {activity.data.paymentId &&
+              ` (Payment ID: ${activity.data.paymentId})`}
+          </>
+        );
+      case "LOAN_PAYMENT":
+        return (
+          <>
+            {activity.data.amount
+              ? formatCurrency(activity.data.amount)
+              : "Pembayaran"}{" "}
+            {activity.data.installmentNumber &&
+              `(Cicilan ke-${activity.data.installmentNumber}) `}
+            {activity.data.loanId && (
+              <span>
+                untuk Loan ID:{" "}
+                <Link
+                  href={`/admin/applications/${activity.data.loanId}`}
+                  className="text-blue-400 hover:underline"
+                >
+                  {activity.data.loanId}
+                </Link>
+              </span>
+            )}
+          </>
+        );
+      case "LOAN_FUNDING":
+        return (
+          <>
+            Pendanaan{" "}
+            {activity.data.amount ? formatCurrency(activity.data.amount) : ""}{" "}
+            {activity.data.loanId && (
+              <span>
+                untuk Loan ID:{" "}
+                <Link
+                  href={`/admin/applications/${activity.data.loanId}`}
+                  className="text-blue-400 hover:underline"
+                >
+                  {activity.data.loanId}
+                </Link>
+              </span>
+            )}
+          </>
+        );
+      case "LOAN_FUNDS_RELEASE":
+        return (
+          <>
+            Distribusi dana{" "}
+            {activity.data.totalDistributed
+              ? formatCurrency(activity.data.totalDistributed)
+              : ""}{" "}
+            ke {activity.data.recipient?.walletId || "penerima"}{" "}
+            {activity.data.loanId && (
+              <span>
+                (Loan ID:{" "}
+                <Link
+                  href={`/admin/applications/${activity.data.loanId}`}
+                  className="text-blue-400 hover:underline"
+                >
+                  {activity.data.loanId}
+                </Link>
+                )
+              </span>
+            )}
+          </>
+        );
+      case "REPAYMENT_SCHEDULE_CREATION":
+        return (
+          <>
+            Pembuatan jadwal pembayaran dengan{" "}
+            {activity.data.installments || "N/A"} cicilan{" "}
+            {activity.data.loanId && (
+              <span>
+                untuk Loan ID:{" "}
+                <Link
+                  href={`/admin/applications/${activity.data.loanId}`}
+                  className="text-blue-400 hover:underline"
+                >
+                  {activity.data.loanId}
+                </Link>
+              </span>
+            )}
+          </>
+        );
+      case "ESCROW_RELEASE":
+        return (
+          <>
+            Pelepasan escrow{" "}
+            {activity.data.amount ? formatCurrency(activity.data.amount) : ""}{" "}
+            ke {activity.data.recipientId || "penerima"}{" "}
+            {activity.data.loanId && (
+              <span>
+                (Loan ID:{" "}
+                <Link
+                  href={`/admin/applications/${activity.data.loanId}`}
+                  className="text-blue-400 hover:underline"
+                >
+                  {activity.data.loanId}
+                </Link>
+                )
+              </span>
+            )}
+          </>
+        );
+      default:
+        return activity.action;
+    }
+  };
+
+  // Prepare data for role distribution chart
+  const roleDistributionData = Object.entries(
+    summaryData?.data?.data?.systemMetrics?.roleDistribution || {}
+  ).map(([role, count]) => ({ name: role, value: count }));
+
+  // Prepare data for loan status chart
+  const loanStatusData = [
+    {
+      name: "Active",
+      value: summaryData?.data?.data?.systemMetrics?.activeLoans || 0,
+    },
+    {
+      name: "Pending",
+      value: summaryData?.data?.data?.systemMetrics?.pendingLoans || 0,
+    },
+    {
+      name: "Completed",
+      value: summaryData?.data?.data?.systemMetrics?.completedLoans || 0,
+    },
+    {
+      name: "Rejected",
+      value: summaryData?.data?.data?.systemMetrics?.rejectedLoans || 0,
+    },
+  ];
+
+  // Loading state
+  if (summaryLoading) {
+    return (
+      <AdminDashboardLayout>
+        <div className="flex justify-center items-center h-screen bg-gray-900 text-gray-200">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+          <p className="ml-3 text-lg">Memuat dashboard...</p>
+        </div>
+      </AdminDashboardLayout>
+    );
+  }
+
+  // Error state
+  if (summaryError) {
+    return (
+      <AdminDashboardLayout>
+        <div className="flex flex-col items-center gap-4 p-6  rounded-lg max-w-md mx-auto mt-10 text-gray-200">
+          <AlertCircle className="h-8 w-8 text-red-400" />
+          <p className="text-red-400 font-medium">
+            Gagal memuat dashboard: {summaryError || "Terjadi kesalahan"}
+          </p>
+          <Button
+            onClick={refetchSummary}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            Coba Lagi
+          </Button>
+        </div>
+      </AdminDashboardLayout>
+    );
+  }
+
+  const {
+    systemMetrics,
+    creditScoreDistribution,
+    recentActivity,
+    loansNeedingAttention,
+  } = summaryData?.data?.data || {};
+
   return (
     <AdminDashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="container mx-auto p-6 space-y-8  text-gray-200">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-            <p className="text-muted-foreground">Platform overview and management</p>
+            <h1 className="text-2xl font-semibold">Dashboard Admin</h1>
+            <p className="text-sm text-gray-400 mt-1">
+              Ikhtisar dan pengelolaan platform pinjaman
+            </p>
           </div>
+          <Button
+            onClick={refetchSummary}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            Refresh Data
+          </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Loans</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">$2.45M</div>
-              <p className="text-xs text-muted-foreground">Across 142 active loans</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">6,284</div>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-green-500">↑ 12%</span> from last month
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Applications</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">24</div>
-              <p className="text-xs text-muted-foreground">Requiring review</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">System Health</CardTitle>
-              <Shield className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">98.7%</div>
-              <p className="text-xs text-muted-foreground">All systems operational</p>
-            </CardContent>
-          </Card>
+        {/* Summary Cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              title: "Total Pinjaman",
+              value: formatCurrency(systemMetrics?.totalLoanAmount || 0),
+              subtext: `Dari ${systemMetrics?.totalLoans || 0} pinjaman`,
+              icon: <DollarSign className="h-5 w-5 text-gray-400" />,
+            },
+            {
+              title: "Pengguna Aktif",
+              value: systemMetrics?.totalUsers || 0,
+              subtext: `${systemMetrics?.verifiedUsers || 0} terverifikasi, ${
+                systemMetrics?.pendingVerification || 0
+              } menunggu`,
+              icon: <Users className="h-5 w-5 text-gray-400" />,
+            },
+            {
+              title: "Saldo Dompet",
+              value: formatCurrency(systemMetrics?.totalWalletBalance || 0),
+              subtext: `Biaya platform: ${formatCurrency(
+                systemMetrics?.totalPlatformFees || 0
+              )}`,
+              icon: <DollarSign className="h-5 w-5 text-gray-400" />,
+            },
+            {
+              title: "Skor Kredit Minimum",
+              value: systemMetrics?.minimumCreditScore || 0,
+              subtext: `Maksimum pinjaman: ${formatCurrency(
+                systemMetrics?.maximumLoanAmount || 0
+              )}`,
+              icon: <PieChart className="h-5 w-5 text-gray-400" />,
+            },
+          ].map((item, index) => (
+            <Card
+              key={index}
+              className=" border-gray-700 shadow-md hover:shadow-lg transition-shadow"
+            >
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-gray-300">
+                  {item.title}
+                </CardTitle>
+                {item.icon}
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-semibold text-white">
+                  {item.value}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">{item.subtext}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        <Tabs defaultValue="applications" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="applications">Pending Applications</TabsTrigger>
-            <TabsTrigger value="loans">Active Loans</TabsTrigger>
-            <TabsTrigger value="users">User Management</TabsTrigger>
-            <TabsTrigger value="system">System Status</TabsTrigger>
+        {/* Tabs */}
+        <Tabs defaultValue="aktivitasterbaru" className="space-y-6">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 gap-2  p-1 rounded-lg">
+            {[
+              { label: "Aktivitas Terbaru", value: "aktivitasterbaru" },
+              {
+                label: "Distribusi Skor Kredit",
+                value: "distribusiskorkredit",
+              },
+              { label: "Pengajuan Tertunda", value: "pengajuantertunda" },
+              { label: "Distribusi Peran", value: "distribusiperan" },
+            ].map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="text-sm font-medium py-2 px-4 data-[state=active]:bg-blue-900 data-[state=active]:text-white rounded-md text-gray-300"
+              >
+                {tab.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
-          <TabsContent value="applications" className="space-y-4">
-            <Card>
+
+          {/* Aktivitas Terbaru */}
+          <TabsContent value="aktivitasterbaru" className="space-y-4">
+            <Card className=" border-gray-700 shadow-md">
               <CardHeader>
-                <CardTitle>Loan Applications Requiring Review</CardTitle>
-                <CardDescription>Review and approve pending loan applications</CardDescription>
+                <CardTitle className="text-lg font-semibold text-white">
+                  Aktivitas Terbaru
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Lihat aktivitas terkini di platform
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="rounded-md border">
-                  <div className="grid grid-cols-5 border-b p-3 font-medium">
-                    <div>Business</div>
-                    <div>Amount</div>
-                    <div>Purpose</div>
-                    <div>Credit Score</div>
-                    <div>Actions</div>
+              <CardContent>
+                {recentActivity?.length ? (
+                  <div className="overflow-x-auto rounded-md border border-gray-700">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-700 text-gray-300 font-medium">
+                          <th className="p-3 text-left">Aksi</th>
+                          <th className="p-3 text-left">Pelaku</th>
+                          <th className="p-3 text-left">Detail</th>
+                          <th className="p-3 text-left">Waktu</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {recentActivity.map((activity) => (
+                          <tr
+                            key={activity.recordId}
+                            className="hover:bg-gray-700"
+                          >
+                            <td className="p-3">{activity.action}</td>
+                            <td className="p-3">{activity.performedBy}</td>
+                            <td className="p-3">
+                              {getActivityDetail(activity)}
+                            </td>
+                            <td className="p-3 text-gray-400">
+                              {new Date(activity.timestamp).toLocaleString(
+                                "id-ID",
+                                {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                  timeZone: "Asia/Jakarta",
+                                }
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="divide-y">
-                    <div className="grid grid-cols-5 items-center p-3">
-                      <div>TechGrow Inc.</div>
-                      <div>$50,000</div>
-                      <div>Expansion</div>
-                      <div className="flex items-center">
-                        <Badge className="bg-primary/10 text-primary">A+</Badge>
-                      </div>
-                      <div>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href="/admin/applications/A-2023-0045">Review</Link>
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-5 items-center p-3">
-                      <div>Fashion Forward Ltd.</div>
-                      <div>$35,000</div>
-                      <div>Inventory</div>
-                      <div className="flex items-center">
-                        <Badge className="bg-primary/10 text-primary">A</Badge>
-                      </div>
-                      <div>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href="/admin/applications/A-2023-0046">Review</Link>
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-5 items-center p-3">
-                      <div>Gourmet Delights</div>
-                      <div>$25,000</div>
-                      <div>Equipment</div>
-                      <div className="flex items-center">
-                        <Badge className="bg-secondary/10 text-secondary">B+</Badge>
-                      </div>
-                      <div>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href="/admin/applications/A-2023-0047">Review</Link>
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-5 items-center p-3">
-                      <div>Precision Parts Co.</div>
-                      <div>$75,000</div>
-                      <div>Expansion</div>
-                      <div className="flex items-center">
-                        <Badge className="bg-primary/10 text-primary">A</Badge>
-                      </div>
-                      <div>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href="/admin/applications/A-2023-0048">Review</Link>
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-5 items-center p-3">
-                      <div>MediCare Solutions</div>
-                      <div>$45,000</div>
-                      <div>Equipment</div>
-                      <div className="flex items-center">
-                        <Badge className="bg-primary/10 text-primary">A-</Badge>
-                      </div>
-                      <div>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href="/admin/applications/A-2023-0049">Review</Link>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-gray-400">Tidak ada aktivitas terbaru.</p>
+                )}
               </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href="/admin/applications">
-                    View All Applications <ArrowRight className="ml-2 h-4 w-4" />
+              {/* <CardFooter>
+                <Button
+                  variant="outline"
+                  className="w-full border-blue-500 text-blue-400 hover:bg-blue-900"
+                  asChild
+                >
+                  <Link
+                    href="/admin/activity"
+                    className="flex items-center justify-center gap-2"
+                  >
+                    Lihat Semua Aktivitas
                   </Link>
                 </Button>
-              </CardFooter>
+              </CardFooter> */}
             </Card>
           </TabsContent>
-          <TabsContent value="loans" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Active Loans Overview</CardTitle>
-                <CardDescription>Monitor and manage active loans on the platform</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">Loan Status Distribution</p>
-                  </div>
-                  <div className="h-[200px] w-full rounded-md bg-muted/30 flex items-center justify-center">
-                    <PieChart className="h-8 w-8 text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">Loan Status Chart</span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-4 pt-4">
-                    <div className="rounded-md bg-muted/30 p-3 text-center">
-                      <p className="text-sm text-muted-foreground">Active</p>
-                      <p className="text-lg font-medium">112</p>
-                    </div>
-                    <div className="rounded-md bg-muted/30 p-3 text-center">
-                      <p className="text-sm text-muted-foreground">Funding</p>
-                      <p className="text-lg font-medium">24</p>
-                    </div>
-                    <div className="rounded-md bg-muted/30 p-3 text-center">
-                      <p className="text-sm text-muted-foreground">Late</p>
-                      <p className="text-lg font-medium">6</p>
-                    </div>
-                    <div className="rounded-md bg-muted/30 p-3 text-center">
-                      <p className="text-sm text-muted-foreground">Completed</p>
-                      <p className="text-lg font-medium">87</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <p className="font-medium">Recent Loan Activity</p>
-                  <div className="rounded-md border">
-                    <div className="grid grid-cols-4 border-b p-3 font-medium">
-                      <div>Loan ID</div>
-                      <div>Business</div>
-                      <div>Status</div>
-                      <div>Last Activity</div>
-                    </div>
-                    <div className="divide-y">
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>L-2023-0045</div>
-                        <div>TechGrow Inc.</div>
-                        <div>
-                          <Badge className="bg-green-500/10 text-green-500">Active</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">Payment received (2 hours ago)</div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>L-2023-0046</div>
-                        <div>Fashion Forward Ltd.</div>
-                        <div>
-                          <Badge className="bg-green-500/10 text-green-500">Active</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">Payment received (1 day ago)</div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>L-2023-0047</div>
-                        <div>Gourmet Delights</div>
-                        <div>
-                          <Badge className="bg-yellow-500/10 text-yellow-500">Late</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">Payment reminder sent (3 days ago)</div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>L-2023-0048</div>
-                        <div>Precision Parts Co.</div>
-                        <div>
-                          <Badge className="bg-blue-500/10 text-blue-500">Funding</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">New investor (5 hours ago)</div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>L-2023-0049</div>
-                        <div>MediCare Solutions</div>
-                        <div>
-                          <Badge className="bg-blue-500/10 text-blue-500">Funding</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">New investor (12 hours ago)</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+          {/* Distribusi Skor Kredit */}
+          <TabsContent value="distribusiskorkredit" className="space-y-4">
+            <Card className=" border-gray-700 shadow-md">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-white">
+                  Distribusi Skor Kredit
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Ringkasan distribusi skor kredit pengguna
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {Object.keys(creditScoreDistribution || {}).length ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={Object.entries(creditScoreDistribution || {}).map(
+                        ([range, count]) => ({ range, count })
+                      )}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="range" stroke="#9CA3AF" />
+                      <YAxis stroke="#9CA3AF" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#1F2937",
+                          borderColor: "#374151",
+                          color: "#E5E7EB",
+                        }}
+                      />
+                      <Bar dataKey="count" fill="#3B82F6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-gray-400">
+                    Tidak ada data distribusi skor kredit.
+                  </p>
+                )}
               </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href="/admin/loans">
-                    View All Loans <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
             </Card>
           </TabsContent>
-          <TabsContent value="users" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage platform users and their access</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">User Growth</p>
-                  </div>
-                  <div className="h-[200px] w-full rounded-md bg-muted/30 flex items-center justify-center">
-                    <BarChart3 className="h-8 w-8 text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">User Growth Chart</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 pt-4">
-                    <div className="rounded-md bg-muted/30 p-3 text-center">
-                      <p className="text-sm text-muted-foreground">Total Users</p>
-                      <p className="text-lg font-medium">6,284</p>
-                    </div>
-                    <div className="rounded-md bg-muted/30 p-3 text-center">
-                      <p className="text-sm text-muted-foreground">Borrowers</p>
-                      <p className="text-lg font-medium">1,245</p>
-                    </div>
-                    <div className="rounded-md bg-muted/30 p-3 text-center">
-                      <p className="text-sm text-muted-foreground">Lenders</p>
-                      <p className="text-lg font-medium">5,039</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <p className="font-medium">Recent User Activity</p>
-                  <div className="rounded-md border">
-                    <div className="grid grid-cols-4 border-b p-3 font-medium">
-                      <div>User</div>
-                      <div>Type</div>
-                      <div>Status</div>
-                      <div>Last Activity</div>
+          {/* Pengajuan Tertunda */}
+          <TabsContent value="pengajuantertunda" className="space-y-4">
+            <Card className=" border-gray-700 shadow-md">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-white">
+                  Pengajuan Pinjaman
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  {loansNeedingAttention?.length
+                    ? "Tinjau dan kelola pengajuan pinjaman tertunda"
+                    : "Tidak ada pengajuan pinjaman tertunda saat ini"}
+                </CardDescription>
+              </CardHeader>
+              {loansNeedingAttention?.length ? (
+                <>
+                  <CardContent>
+                    <div className="overflow-x-auto rounded-md border border-gray-700">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-700 text-gray-300 font-medium">
+                            <th className="p-3 text-left">Peminjam</th>
+                            <th className="p-3 text-left">Jumlah</th>
+                            <th className="p-3 text-left">Skor Kredit</th>
+                            <th className="p-3 text-left">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-700">
+                          {loansNeedingAttention.map((loan) => (
+                            <tr key={loan.loanId} className="hover:bg-gray-700">
+                              <td className="p-3">{loan.borrowerId}</td>
+                              <td className="p-3">
+                                {formatCurrency(loan.amount)}
+                              </td>
+                              <td className="p-3">
+                                {getCreditScoreBadge(loan.creditScore || 700)}
+                              </td>
+                              <td className="p-3">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  asChild
+                                  className="border-blue-500 text-blue-400 hover:bg-blue-900"
+                                >
+                                  <Link
+                                    href={`/admin/applications/${loan.loanId}`}
+                                  >
+                                    Tinjau
+                                  </Link>
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="divide-y">
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>john.doe@example.com</div>
-                        <div>Lender</div>
-                        <div>
-                          <Badge className="bg-green-500/10 text-green-500">Active</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">Made investment (1 hour ago)</div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>techgrow@example.com</div>
-                        <div>Borrower</div>
-                        <div>
-                          <Badge className="bg-green-500/10 text-green-500">Active</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">Made payment (3 hours ago)</div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>sarah.smith@example.com</div>
-                        <div>Lender</div>
-                        <div>
-                          <Badge className="bg-green-500/10 text-green-500">Active</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">Updated profile (5 hours ago)</div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>newuser@example.com</div>
-                        <div>Lender</div>
-                        <div>
-                          <Badge className="bg-yellow-500/10 text-yellow-500">Pending</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">Registered (1 day ago)</div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center p-3">
-                        <div>precision@example.com</div>
-                        <div>Borrower</div>
-                        <div>
-                          <Badge className="bg-green-500/10 text-green-500">Active</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">Applied for loan (2 days ago)</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href="/admin/users">
-                    Manage Users <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
+                  </CardContent>
+                  <CardFooter>
+                    <Button
+                      variant="outline"
+                      className="w-full border-blue-500 text-blue-400 hover:bg-blue-900"
+                      asChild
+                    >
+                      <Link
+                        href="/admin/applications"
+                        className="flex items-center justify-center gap-2"
+                      >
+                        Lihat Semua Pengajuan
+                      </Link>
+                    </Button>
+                  </CardFooter>
+                </>
+              ) : (
+                <CardContent>
+                  <p className="text-gray-400">
+                    Tidak ada pengajuan pinjaman tertunda saat ini.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-4 border-blue-500 text-blue-400 hover:bg-blue-900"
+                    asChild
+                  >
+                    <Link href="/admin/applications">
+                      Lihat Riwayat Pengajuan
+                    </Link>
+                  </Button>
+                </CardContent>
+              )}
             </Card>
           </TabsContent>
-          <TabsContent value="system" className="space-y-4">
-            <Card>
+
+          {/* Distribusi Peran */}
+          <TabsContent value="distribusiperan" className="space-y-4">
+            <Card className=" border-gray-700 shadow-md">
               <CardHeader>
-                <CardTitle>System Status</CardTitle>
-                <CardDescription>Monitor the health and performance of the platform</CardDescription>
+                <CardTitle className="text-lg font-semibold text-white">
+                  Distribusi Peran Pengguna
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Ringkasan distribusi peran pengguna di platform
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-500" />
-                      <p className="font-medium">All Systems Operational</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Last updated: 10 minutes ago</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm">Blockchain Network</p>
-                        <p className="text-sm font-medium">100%</p>
-                      </div>
-                      <Progress value={100} className="h-1.5" />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm">API Services</p>
-                        <p className="text-sm font-medium">99.8%</p>
-                      </div>
-                      <Progress value={99.8} className="h-1.5" />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm">Database</p>
-                        <p className="text-sm font-medium">99.9%</p>
-                      </div>
-                      <Progress value={99.9} className="h-1.5" />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm">Web Application</p>
-                        <p className="text-sm font-medium">99.7%</p>
-                      </div>
-                      <Progress value={99.7} className="h-1.5" />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm">Authentication Services</p>
-                        <p className="text-sm font-medium">100%</p>
-                      </div>
-                      <Progress value={100} className="h-1.5" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="font-medium">Recent System Events</p>
-                  <div className="rounded-md border">
-                    <div className="divide-y">
-                      <div className="flex items-center justify-between p-3">
-                        <div className="flex items-center gap-3">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          <div>
-                            <p className="font-medium">Database Backup Completed</p>
-                            <p className="text-sm text-muted-foreground">Scheduled backup completed successfully</p>
-                          </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground">2 hours ago</p>
-                      </div>
-                      <div className="flex items-center justify-between p-3">
-                        <div className="flex items-center gap-3">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          <div>
-                            <p className="font-medium">System Update Deployed</p>
-                            <p className="text-sm text-muted-foreground">Version 2.4.5 deployed successfully</p>
-                          </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground">1 day ago</p>
-                      </div>
-                      <div className="flex items-center justify-between p-3">
-                        <div className="flex items-center gap-3">
-                          <FileText className="h-4 w-4 text-blue-500" />
-                          <div>
-                            <p className="font-medium">Security Audit Completed</p>
-                            <p className="text-sm text-muted-foreground">No critical issues found</p>
-                          </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground">3 days ago</p>
-                      </div>
-                      <div className="flex items-center justify-between p-3">
-                        <div className="flex items-center gap-3">
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                          <div>
-                            <p className="font-medium">Smart Contract Update</p>
-                            <p className="text-sm text-muted-foreground">Updated loan processing contracts</p>
-                          </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground">5 days ago</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <CardContent>
+                {roleDistributionData.length ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={roleDistributionData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="name" stroke="#9CA3AF" />
+                      <YAxis stroke="#9CA3AF" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#1F2937",
+                          borderColor: "#374151",
+                          color: "#E5E7EB",
+                        }}
+                      />
+                      <Bar dataKey="value" fill="#3B82F6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-gray-400">
+                    Tidak ada data distribusi peran.
+                  </p>
+                )}
               </CardContent>
-              <CardFooter>
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href="/admin/system">
-                    View System Logs <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* System Configuration */}
+        <Card className=" border-gray-700 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-white">
+              Konfigurasi Sistem
+            </CardTitle>
+            <CardDescription className="text-gray-400">
+              Informasi konfigurasi platform
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <p className="text-sm text-gray-400">Biaya Platform</p>
+                <p className="text-lg font-semibold text-white">
+                  {((systemMetrics?.platformFeeRate ?? 0) * 100).toFixed(2)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400">Skor Kredit Minimum</p>
+                <p className="text-lg font-semibold text-white">
+                  {systemMetrics?.minimumCreditScore}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400">Maksimum Pinjaman</p>
+                <p className="text-lg font-semibold text-white">
+                  {formatCurrency(systemMetrics?.maximumLoanAmount || 0)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AdminDashboardLayout>
-  )
+  );
 }

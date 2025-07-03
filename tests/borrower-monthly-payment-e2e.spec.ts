@@ -52,20 +52,6 @@ test.describe('E2E Borrower Monthly Payment - All Installments', () => {
     await setupErrorLogging(page);
     await performLogin(page, APP_CONFIG.ROLES.BORROWER);
 
-    // Navigate to Wallet and Deposit Funds
-    await page.goto(APP_CONFIG.ROUTES.BORROWER.WALLET);
-    await expect(page.getByRole('heading', { name: APP_CONFIG.UI_TEXT.WALLET.TITLE })).toBeVisible();
-
-    // Switch to Deposit tab
-    await page.getByRole('tab', { name: 'Deposit' }).click();
-
-    // Enter deposit amount (increased for all 3 payments)
-    const depositAmount = '60000000'; // Increased amount to cover all payments
-    await page.fill('input#amount', depositAmount);
-    await expect(page.locator('input#amount')).toHaveValue(depositAmount);
-
-    // Submit deposit
-    await page.getByLabel('Deposit').getByRole('button', { name: APP_CONFIG.UI_TEXT.WALLET.DEPOSIT_BUTTON }).click();
   });
 
   test('should make all 3 monthly loan payments', async ({ page }) => {

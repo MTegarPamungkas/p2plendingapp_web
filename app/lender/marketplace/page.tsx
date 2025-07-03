@@ -269,7 +269,7 @@ export default function LenderMarketplacePage() {
                                 </span>
                               </div>
                             </div>
-                            <div className="flex items-center justify-between rounded-md border border-border/50 bg-muted/30 p-2 text-sm">
+                            {/* <div className="flex items-center justify-between rounded-md border border-border/50 bg-muted/30 p-2 text-sm">
                               <div className="flex items-center gap-1">
                                 <Shield className="h-3 w-3 text-primary" />
                                 <span>Blockchain Verified</span>
@@ -280,7 +280,7 @@ export default function LenderMarketplacePage() {
                                   {(loan.creditScore / 170).toFixed(1)}/5
                                 </span>
                               </div>
-                            </div>
+                            </div> */}
                           </CardContent>
                           <CardFooter>
                             <Button className="w-full" asChild>

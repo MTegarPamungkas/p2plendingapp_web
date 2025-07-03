@@ -60,12 +60,9 @@ interface Loan {
   createdAt: string;
   description?: string;
   businessDetails?: {
-    founded: string;
-    industry: string;
-    employees: string;
-    revenue: string;
-    profit: string;
-    location: string;
+    businessName: string;
+    businessType: string;
+    businessDuration: string;
   };
   financials?: Array<{
     year: string;
@@ -171,23 +168,6 @@ export default function LenderMarketplaceDetailsPage({
     return "D";
   };
 
-  const generateCompanyName = (purpose: string) => {
-    const companies = [
-      "TechGrow Inc.",
-      "Fashion Forward Ltd.",
-      "Gourmet Delights",
-      "Precision Parts Co.",
-      "MediCare Solutions",
-      "Digital Trends Shop",
-      "Green Energy Corp.",
-      "Smart Solutions Ltd.",
-      "Innovation Hub Inc.",
-      "Future Tech Co.",
-    ];
-    const index = Math.abs(purpose.charCodeAt(0)) % companies.length;
-    return companies[index] || "Business Enterprise";
-  };
-
   const { mutateAsync: investInLoanMutation, loading: investInLoanLoading } =
     useMutation();
 
@@ -241,9 +221,8 @@ export default function LenderMarketplaceDetailsPage({
 
   const remainingAmount = loan.fundingTarget - loan.currentFunding;
   const progress = Math.round((loan.currentFunding / loan.fundingTarget) * 100);
-  const creditRating = getCreditRating(loan.creditScore);
-  const companyName = generateCompanyName(loan.purpose);
   const loanTitle = loan.purpose + " Loan";
+  const companyName = loan.businessDetails?.businessName || "N/A";
 
   return (
     <LenderDashboardLayout>
@@ -258,12 +237,12 @@ export default function LenderMarketplaceDetailsPage({
             <div>
               <h1 className="text-3xl font-bold tracking-tight">{loanTitle}</h1>
               <p className="text-muted-foreground flex items-center gap-1">
-                <Building className="h-3 w-3" /> {companyName}
+                <Building className="h-3 w-3" /> {}
               </p>
             </div>
           </div>
           <div className="flex gap-2">
-            <Badge className="bg-primary/10 text-primary">{creditRating}</Badge>
+            {/* <Badge className="bg-primary/10 text-primary">{creditRating}</Badge> */}
             <Badge
               className={
                 loan.status === "PENDING_APPROVAL"
@@ -402,11 +381,9 @@ export default function LenderMarketplaceDetailsPage({
                     {loan.businessDetails ? (
                       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                         <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground">
-                            Didirikan
-                          </p>
+                          <p className="text-sm text-muted-foreground">Nama</p>
                           <p className="font-medium">
-                            {loan.businessDetails.founded}
+                            {loan.businessDetails.businessName}
                           </p>
                         </div>
                         <div className="space-y-1">
@@ -414,39 +391,15 @@ export default function LenderMarketplaceDetailsPage({
                             Industri
                           </p>
                           <p className="font-medium">
-                            {loan.businessDetails.industry}
+                            {loan.businessDetails.businessType}
                           </p>
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm text-muted-foreground">
-                            Jumlah Karyawan
+                            Durasi Bisnis
                           </p>
                           <p className="font-medium">
-                            {loan.businessDetails.employees}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground">
-                            Pendapatan Tahunan
-                          </p>
-                          <p className="font-medium">
-                            {loan.businessDetails.revenue}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground">
-                            Laba Tahunan
-                          </p>
-                          <p className="font-medium">
-                            {loan.businessDetails.profit}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground">
-                            Lokasi
-                          </p>
-                          <p className="font-medium">
-                            {loan.businessDetails.location}
+                            {loan.businessDetails.businessDuration}
                           </p>
                         </div>
                       </div>
